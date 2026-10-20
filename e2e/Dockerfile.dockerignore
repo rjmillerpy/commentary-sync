@@ -1,0 +1,6 @@
+# The e2e image's build context is the repository root (see Dockerfile).
+*
+!e2e/**
+!client/src/**
+e2e/node_modules
+e2e/results

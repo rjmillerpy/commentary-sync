@@ -1,0 +1,44 @@
+{
+  "name": "@commentary-sync/client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The commentary-sync API client, shared by the studio (web/) and the listener app (listener/): calls, response schemas, and the signed-in session.",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "exports": {
+    "./api": "./src/api.ts",
+    "./schema": "./src/schema.ts",
+    "./session": "./src/session.ts",
+    "./testing": "./src/testing.ts",
+    "./react": "./src/react.ts",
+    "./structure": "./src/structure.ts",
+    "./clock": "./src/clock.ts",
+    "./features": "./src/features.ts",
+    "./resample": "./src/resample.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --experimental-test-coverage --test-coverage-include='src/**' --test-coverage-lines=90 --test-coverage-branches=90 --test-coverage-functions=90 'test/**/*.test.ts'",
+    "check": "npm run typecheck && npm test"
+  },
+  "dependencies": {
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.1",
+    "@types/react": "19.3.0",
+    "react": "19.3.0",
+    "test-renderer": "1.3.0",
+    "typescript": "5.9.3"
+  },
+  "peerDependencies": {
+    "react": "19.3.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  }
+}

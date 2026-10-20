@@ -1,0 +1,14 @@
+# The studio image's build context is the repository root (see Dockerfile);
+# only the workspace files it needs go in.
+*
+!package.json
+!package-lock.json
+!client/package.json
+!client/src/**
+!web/**
+web/node_modules
+web/.next
+web/coverage
+web/__tests__
+web/*.tsbuildinfo
+web/.env*

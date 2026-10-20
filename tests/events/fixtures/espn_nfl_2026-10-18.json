@@ -1,0 +1,448 @@
+{
+  "events": [
+    {
+      "id": "401872996",
+      "date": "2026-10-18T13:30Z",
+      "name": "Houston Texans at Jacksonville Jaguars",
+      "competitions": [
+        {
+          "status": {
+            "type": {
+              "name": "STATUS_SCHEDULED",
+              "state": "pre"
+            }
+          },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "team": {
+                "displayName": "Jacksonville Jaguars"
+              }
+            },
+            {
+              "homeAway": "away",
+              "team": {
+                "displayName": "Houston Texans"
+              }
+            }
+          ],
+          "broadcasts": [
+            {
+              "market": "national",
+              "names": [
+                "NFL Net"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401872999",
+      "date": "2026-10-18T17:00Z",
+      "name": "Chicago Bears at Atlanta Falcons",
+      "competitions": [
+        {
+          "status": {
+            "type": {
+              "name": "STATUS_SCHEDULED",
+              "state": "pre"
+            }
+          },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "team": {
+                "displayName": "Atlanta Falcons"
+              }
+            },
+            {
+              "homeAway": "away",
+              "team": {
+                "displayName": "Chicago Bears"
+              }
+            }
+          ],
+          "broadcasts": [
+            {
+              "market": "national",
+              "names": [
+                "Fox"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401872997",
+      "date": "2026-10-18T17:00Z",
+      "name": "Baltimore Ravens at Cleveland Browns",
+      "competitions": [
+        {
+          "status": {
+            "type": {
+              "name": "STATUS_SCHEDULED",
+              "state": "pre"
+            }
+          },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "team": {
+                "displayName": "Cleveland Browns"
+              }
+            },
+            {
+              "homeAway": "away",
+              "team": {
+                "displayName": "Baltimore Ravens"
+              }
+            }
+          ],
+          "broadcasts": [
+            {
+              "market": "national",
+              "names": [
+                "Fox"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401873003",
+      "date": "2026-10-18T17:00Z",
+      "name": "Tennessee Titans at Indianapolis Colts",
+      "competitions": [
+        {
+          "status": {
+            "type": {
+              "name": "STATUS_SCHEDULED",
+              "state": "pre"
+            }
+          },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "team": {
+                "displayName": "Indianapolis Colts"
+              }
+            },
+            {
+              "homeAway": "away",
+              "team": {
+                "displayName": "Tennessee Titans"
+              }
+            }
+          ],
+          "broadcasts": [
+            {
+              "market": "national",
+              "names": [
+                "Fox"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401873001",
+      "date": "2026-10-18T17:00Z",
+      "name": "New York Jets at New England Patriots",
+      "competitions": [
+        {
+          "status": {
+            "type": {
+              "name": "STATUS_SCHEDULED",
+              "state": "pre"
+            }
+          },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "team": {
+                "displayName": "New England Patriots"
+              }
+            },
+            {
+              "homeAway": "away",
+              "team": {
+                "displayName": "New York Jets"
+              }
+            }
+          ],
+          "broadcasts": [
+            {
+              "market": "national",
+              "names": [
+                "CBS"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401873000",
+      "date": "2026-10-18T17:00Z",
+      "name": "New Orleans Saints at New York Giants",
+      "competitions": [
+        {
+          "status": {
+            "type": {
+              "name": "STATUS_SCHEDULED",
+              "state": "pre"
+            }
+          },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "team": {
+                "displayName": "New York Giants"
+              }
+            },
+            {
+              "homeAway": "away",
+              "team": {
+                "displayName": "New Orleans Saints"
+              }
+            }
+          ],
+          "broadcasts": [
+            {
+              "market": "national",
+              "names": [
+                "Fox"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401872998",
+      "date": "2026-10-18T17:00Z",
+      "name": "Carolina Panthers at Philadelphia Eagles",
+      "competitions": [
+        {
+          "status": {
+            "type": {
+              "name": "STATUS_SCHEDULED",
+              "state": "pre"
+            }
+          },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "team": {
+                "displayName": "Philadelphia Eagles"
+              }
+            },
+            {
+              "homeAway": "away",
+              "team": {
+                "displayName": "Carolina Panthers"
+              }
+            }
+          ],
+          "broadcasts": [
+            {
+              "market": "national",
+              "names": [
+                "CBS"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401873002",
+      "date": "2026-10-18T17:00Z",
+      "name": "Pittsburgh Steelers at Tampa Bay Buccaneers",
+      "competitions": [
+        {
+          "status": {
+            "type": {
+              "name": "STATUS_SCHEDULED",
+              "state": "pre"
+            }
+          },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "team": {
+                "displayName": "Tampa Bay Buccaneers"
+              }
+            },
+            {
+              "homeAway": "away",
+              "team": {
+                "displayName": "Pittsburgh Steelers"
+              }
+            }
+          ],
+          "broadcasts": [
+            {
+              "market": "national",
+              "names": [
+                "CBS"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401873004",
+      "date": "2026-10-18T20:05Z",
+      "name": "Arizona Cardinals at Los Angeles Rams",
+      "competitions": [
+        {
+          "status": {
+            "type": {
+              "name": "STATUS_SCHEDULED",
+              "state": "pre"
+            }
+          },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "team": {
+                "displayName": "Los Angeles Rams"
+              }
+            },
+            {
+              "homeAway": "away",
+              "team": {
+                "displayName": "Arizona Cardinals"
+              }
+            }
+          ],
+          "broadcasts": [
+            {
+              "market": "national",
+              "names": [
+                "Fox"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401873006",
+      "date": "2026-10-18T20:25Z",
+      "name": "Los Angeles Chargers at Kansas City Chiefs",
+      "competitions": [
+        {
+          "status": {
+            "type": {
+              "name": "STATUS_SCHEDULED",
+              "state": "pre"
+            }
+          },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "team": {
+                "displayName": "Kansas City Chiefs"
+              }
+            },
+            {
+              "homeAway": "away",
+              "team": {
+                "displayName": "Los Angeles Chargers"
+              }
+            }
+          ],
+          "broadcasts": [
+            {
+              "market": "national",
+              "names": [
+                "CBS"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401873005",
+      "date": "2026-10-18T20:25Z",
+      "name": "Buffalo Bills at Las Vegas Raiders",
+      "competitions": [
+        {
+          "status": {
+            "type": {
+              "name": "STATUS_SCHEDULED",
+              "state": "pre"
+            }
+          },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "team": {
+                "displayName": "Las Vegas Raiders"
+              }
+            },
+            {
+              "homeAway": "away",
+              "team": {
+                "displayName": "Buffalo Bills"
+              }
+            }
+          ],
+          "broadcasts": [
+            {
+              "market": "national",
+              "names": [
+                "CBS"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401873007",
+      "date": "2026-10-19T00:20Z",
+      "name": "Dallas Cowboys at Green Bay Packers",
+      "competitions": [
+        {
+          "status": {
+            "type": {
+              "name": "STATUS_SCHEDULED",
+              "state": "pre"
+            }
+          },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "team": {
+                "displayName": "Green Bay Packers"
+              }
+            },
+            {
+              "homeAway": "away",
+              "team": {
+                "displayName": "Dallas Cowboys"
+              }
+            }
+          ],
+          "broadcasts": [
+            {
+              "market": "national",
+              "names": [
+                "NBC"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

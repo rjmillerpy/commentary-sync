@@ -1,0 +1,35 @@
+# Keep the build context small and secrets out of the image.
+.git
+.gitignore
+.github
+.venv
+# ** so these match at any depth, not just the top level.
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+
+# Real broadcast recordings never leave this machine.
+recordings
+
+# Secrets: config comes from compose.yaml / the environment at runtime.
+.env
+.env.*
+
+# Not needed at runtime
+tests
+# The studio has its own image (web/Dockerfile); its node_modules alone is hundreds of MB.
+web
+# The e2e tests have their own image (e2e/Dockerfile) too.
+e2e
+deploy
+infra
+compose.yaml
+compose.e2e.yaml
+Dockerfile
+.dockerignore
+.pre-commit-config.yaml
+Makefile
+*.md

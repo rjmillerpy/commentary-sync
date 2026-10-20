@@ -1,0 +1,257 @@
+# Local stack: Postgres + Redis + the API + the events scheduler + the studio
+# + LiveKit, with Egress recording streams as HLS and nginx serving it.
+#
+#   make up        # build the images and start everything, waiting until healthy
+#   curl http://localhost:8000/health
+#   make down      # stop everything and delete the database and recordings
+
+name: commentary-sync
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: commentary
+      POSTGRES_PASSWORD: ${COMMENTARY_DB_PASSWORD:-commentary-local}
+      POSTGRES_DB: commentary
+    volumes:
+      # Named volume: data survives `docker compose down`, is wiped by `down -v`.
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      # Only on localhost, and on 5434 so it clashes with neither a local Postgres nor rad-shift's (5433).
+      # `make migration` connects here; so can psql:
+      #   psql -h localhost -p 5434 -U commentary commentary
+      - "127.0.0.1:5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U commentary -d commentary"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  cache:
+    image: redis:8-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: .
+    image: commentary-sync-api:local
+    environment:
+      # `db` and `cache` are the service names above; Compose provides DNS for them.
+      COMMENTARY_DATABASE_URL: postgresql+psycopg://commentary:${COMMENTARY_DB_PASSWORD:-commentary-local}@db:5432/commentary
+      COMMENTARY_CACHE_URL: redis://cache:6379/0
+      # Signs access tokens. The fallback is for this local stack only; a
+      # deployed stack reads its own from the secret store.
+      COMMENTARY_AUTH_SECRET: ${COMMENTARY_AUTH_SECRET:-local-only-auth-secret-not-for-deployment}
+      # Where clients (browser, phone) reach LiveKit, and the key pair the
+      # `livekit` service below accepts. Same local-only fallbacks.
+      COMMENTARY_LIVEKIT_URL: ${COMMENTARY_LIVEKIT_URL:-ws://localhost:7880}
+      COMMENTARY_LIVEKIT_API_KEY: ${COMMENTARY_LIVEKIT_API_KEY:-local-livekit-key}
+      COMMENTARY_LIVEKIT_API_SECRET: ${COMMENTARY_LIVEKIT_API_SECRET:-local-only-livekit-secret-not-for-deployment}
+      # HLS recordings (app/streams/recorder.py): the API asks LiveKit to
+      # start and stop them over the compose network, and hands listeners
+      # playlist URLs on the `hls` service below.
+      COMMENTARY_LIVEKIT_API_URL: http://livekit:7880
+      COMMENTARY_HLS_BASE_URL: ${COMMENTARY_HLS_BASE_URL:-http://localhost:8080}
+      # The studio (the `web` service below) calls the API from the browser.
+      COMMENTARY_CORS_ORIGINS: '["http://localhost:3000"]'
+    ports:
+      # Only on localhost unless COMMENTARY_PUBLISH_ADDRESS says otherwise: a
+      # phone testing the listener app sets it to 0.0.0.0, which opens the API
+      # to the whole Wi-Fi network (see README, "The listener app").
+      - "${COMMENTARY_PUBLISH_ADDRESS:-127.0.0.1}:8000:8000"
+    # The app writes nothing to disk, so the container's filesystem is read-only.
+    read_only: true
+    tmpfs:
+      - /tmp
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+    # The container applies pending migrations before it starts serving.
+    # /health pings Postgres and Redis, so "healthy" means the API can do real
+    # work. urlopen raises on a 503, which makes the check fail. python because
+    # the slim image has no curl.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      # Startup: check every 2 s for up to 60 s; failures in this window don't
+      # count. Running: 3 failures 10 s apart = unhealthy within ~30 s.
+      start_period: 60s
+      start_interval: 2s
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Keeps NFL and NBA events current (app/events/scheduler.py): a full import
+  # every 6 hours, and every 5 minutes while a league has games on. It calls
+  # ESPN's public API, so it needs outbound internet access.
+  scheduler:
+    build: .
+    image: commentary-sync-api:local # the same image as the API
+    command: ["python", "-m", "app.events.scheduler"]
+    environment:
+      COMMENTARY_DATABASE_URL: postgresql+psycopg://commentary:${COMMENTARY_DB_PASSWORD:-commentary-local}@db:5432/commentary
+      COMMENTARY_CACHE_URL: redis://cache:6379/0
+      # Signs access tokens. The fallback is for this local stack only; a
+      # deployed stack reads its own from the secret store.
+      COMMENTARY_AUTH_SECRET: ${COMMENTARY_AUTH_SECRET:-local-only-auth-secret-not-for-deployment}
+      # Where clients (browser, phone) reach LiveKit, and the key pair the
+      # `livekit` service below accepts. Same local-only fallbacks.
+      COMMENTARY_LIVEKIT_URL: ${COMMENTARY_LIVEKIT_URL:-ws://localhost:7880}
+      COMMENTARY_LIVEKIT_API_KEY: ${COMMENTARY_LIVEKIT_API_KEY:-local-livekit-key}
+      COMMENTARY_LIVEKIT_API_SECRET: ${COMMENTARY_LIVEKIT_API_SECRET:-local-only-livekit-secret-not-for-deployment}
+      # HLS recordings (app/streams/recorder.py): the API asks LiveKit to
+      # start and stop them over the compose network, and hands listeners
+      # playlist URLs on the `hls` service below.
+      COMMENTARY_LIVEKIT_API_URL: http://livekit:7880
+      COMMENTARY_HLS_BASE_URL: ${COMMENTARY_HLS_BASE_URL:-http://localhost:8080}
+    read_only: true
+    tmpfs:
+      - /tmp
+    depends_on:
+      # The API container applies migrations before it turns healthy.
+      api:
+        condition: service_healthy
+    # Healthy while a cycle has finished within the last 15 minutes (3 live
+    # intervals); the file is touched after every cycle.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, sys, time; sys.exit(time.time() - os.path.getmtime('/tmp/events-scheduler-heartbeat') > 900)"]
+      start_period: 120s
+      start_interval: 5s
+      interval: 60s
+      timeout: 5s
+      retries: 3
+
+  web:
+    # The repository root: the studio needs the shared client (web/Dockerfile).
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    image: commentary-sync-web:local
+    ports:
+      - "127.0.0.1:3000:3000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+      start_interval: 1s
+
+  # LiveKit: the open-source media server that carries commentary audio
+  # (commentator's mic -> LiveKit -> listeners), over WebRTC. The API signs
+  # the tokens clients join rooms with; it never touches the audio.
+  livekit:
+    image: livekit/livekit-server:v1.13.7
+    environment:
+      # "key: secret". Must match COMMENTARY_LIVEKIT_API_KEY / _SECRET above.
+      LIVEKIT_KEYS: "${COMMENTARY_LIVEKIT_API_KEY:-local-livekit-key}: ${COMMENTARY_LIVEKIT_API_SECRET:-local-only-livekit-secret-not-for-deployment}"
+      # Media goes over one UDP port (and a TCP fallback). LiveKit tells
+      # clients to send it to the container's own address, which this
+      # machine reaches directly, so only signalling is published. A phone on
+      # the Wi-Fi needs more: rtc.node_ip set to the laptop's LAN address and
+      # 7881/tcp and 7882/udp published on it.
+      LIVEKIT_CONFIG: |
+        port: 7880
+        rtc:
+          tcp_port: 7881
+          udp_port: 7882
+          use_external_ip: false
+        room:
+          empty_timeout: 300
+        # The recorder (`egress` below) takes its jobs through Redis. Its own
+        # database number, so its keys never mix with the API's.
+        redis:
+          address: cache:6379
+          db: 1
+        # Room and participant events, signed with this key's secret, to the
+        # API (`api` is its service name). They end streams whose commentator
+        # has gone (app/streams/service.py).
+        webhook:
+          api_key: ${COMMENTARY_LIVEKIT_API_KEY:-local-livekit-key}
+          urls:
+            - http://api:8000/webhooks/livekit
+    ports:
+      - "127.0.0.1:7880:7880" # signalling (WebSocket) and its HTTP API
+    # The image runs as root by default; the server needs no privileges.
+    user: "65534:65534"
+    read_only: true
+    depends_on:
+      cache:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:7880/"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+      start_interval: 1s
+
+  # LiveKit Egress: joins a stream's room as a hidden recorder and writes the
+  # commentator's audio as HLS (2 s AAC segments and a playlist) into the
+  # `hls` volume. The API starts it when the commentator's mic goes live.
+  # Listeners play the HLS behind live, by as much as their TV is behind.
+  egress:
+    image: livekit/egress:v1.14.1
+    environment:
+      EGRESS_CONFIG_BODY: |
+        api_key: ${COMMENTARY_LIVEKIT_API_KEY:-local-livekit-key}
+        api_secret: ${COMMENTARY_LIVEKIT_API_SECRET:-local-only-livekit-secret-not-for-deployment}
+        ws_url: ws://livekit:7880
+        redis:
+          address: cache:6379
+          db: 1
+        health_port: 9090
+        log_level: info
+    volumes:
+      - hls:/hls
+    depends_on:
+      livekit:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:9090/"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 20s
+      start_interval: 1s
+
+  # Serves the HLS the recorder writes to listeners (deploy/hls-nginx.conf).
+  # A deployed stack writes to S3 and serves it through CloudFront instead.
+  hls:
+    image: nginxinc/nginx-unprivileged:1.30.4-alpine
+    volumes:
+      - ./deploy/hls-nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - hls:/hls:ro
+    ports:
+      - "${COMMENTARY_PUBLISH_ADDRESS:-127.0.0.1}:8080:8080" # as the API's, above
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+      start_interval: 1s
+
+volumes:
+  pgdata:
+  # Recorded HLS, in memory and gone on `make down`: local streams are not
+  # kept. Owned by the recorder's user (1001); 1 GB is about 13 stream-hours.
+  hls:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: "size=1g,uid=1001,mode=0755"

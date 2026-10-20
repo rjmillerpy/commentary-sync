@@ -1,0 +1,78 @@
+{
+  "events": [
+    {
+      "id": "401909093",
+      "date": "2026-10-22T23:00Z",
+      "name": "Cleveland Cavaliers at Philadelphia 76ers",
+      "competitions": [
+        {
+          "status": {
+            "type": {
+              "name": "STATUS_SCHEDULED",
+              "state": "pre"
+            }
+          },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "team": {
+                "displayName": "Philadelphia 76ers"
+              }
+            },
+            {
+              "homeAway": "away",
+              "team": {
+                "displayName": "Cleveland Cavaliers"
+              }
+            }
+          ],
+          "broadcasts": [
+            {
+              "market": "national",
+              "names": [
+                "ESPN"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401909094",
+      "date": "2026-10-23T01:30Z",
+      "name": "Denver Nuggets at Oklahoma City Thunder",
+      "competitions": [
+        {
+          "status": {
+            "type": {
+              "name": "STATUS_SCHEDULED",
+              "state": "pre"
+            }
+          },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "team": {
+                "displayName": "Oklahoma City Thunder"
+              }
+            },
+            {
+              "homeAway": "away",
+              "team": {
+                "displayName": "Denver Nuggets"
+              }
+            }
+          ],
+          "broadcasts": [
+            {
+              "market": "national",
+              "names": [
+                "ESPN"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

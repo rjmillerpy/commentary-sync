@@ -1,0 +1,6 @@
+node_modules/
+.expo/
+coverage/
+# Native projects come from `expo prebuild`; app.json is the source.
+android/
+ios/

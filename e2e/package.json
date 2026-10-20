@@ -1,0 +1,20 @@
+{
+  "name": "commentary-sync-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "End-to-end tests: the studio, the API, LiveKit and HLS together, in a browser, offline.",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "24.19.1",
+    "hls.js": "1.7.3",
+    "livekit-client": "2.22.3",
+    "typescript": "5.9.3"
+  }
+}

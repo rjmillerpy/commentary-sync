@@ -1,0 +1,74 @@
+# The e2e stack: compose.yaml, cut off from the internet and from this
+# machine's ports, plus the Playwright runner inside it. `make e2e` runs it as
+# its own project (commentary-sync-e2e), so it never touches the dev stack.
+#
+# No published ports: the browser runs in the `playwright` container, on the
+# same network as everything else, and reaches each service by name. The
+# network is internal, so nothing in the stack can reach the internet: no
+# ESPN (the `seed` service adds the game instead, and the scheduler doesn't
+# run), no STUN servers, nothing unexpected.
+
+services:
+  api:
+    ports: !reset []
+    environment:
+      COMMENTARY_LIVEKIT_URL: ws://livekit:7880
+      COMMENTARY_HLS_BASE_URL: http://hls:8080
+      COMMENTARY_CORS_ORIGINS: '["http://web:3000"]'
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      args:
+        # Baked into the browser bundle: the browser reaches both by name.
+        NEXT_PUBLIC_API_URL: http://api:8000
+        NEXT_PUBLIC_LIVEKIT_URL: ws://livekit:7880
+    image: commentary-sync-web:e2e
+    ports: !reset []
+
+  livekit:
+    ports: !reset []
+
+  hls:
+    ports: !reset []
+
+  db:
+    ports: !reset []
+
+  # Imports games from ESPN, which this network can't reach.
+  scheduler:
+    profiles: ["online"]
+
+  # One-shot: the game the tests go live on (e2e/seed.sql).
+  seed:
+    image: postgres:16
+    profiles: ["e2e"]
+    environment:
+      PGPASSWORD: ${COMMENTARY_DB_PASSWORD:-commentary-local}
+    command: ["psql", "-h", "db", "-U", "commentary", "-d", "commentary", "-v", "ON_ERROR_STOP=1", "-f", "/seed.sql"]
+    volumes:
+      - ./e2e/seed.sql:/seed.sql:ro
+    depends_on:
+      api:
+        condition: service_healthy # migrations have run
+
+  playwright:
+    # The repository root: the sync test uses the phone's code in client/src.
+    build:
+      context: .
+      dockerfile: e2e/Dockerfile
+    image: commentary-sync-e2e:local
+    profiles: ["e2e"]
+    environment:
+      STUDIO_URL: http://web:3000
+      API_URL: http://api:8000
+    volumes:
+      - ./e2e/results:/e2e/results
+    # Chromium keeps rendering buffers in /dev/shm; Docker's default 64 MB
+    # makes it crash on busy pages.
+    shm_size: 1gb
+
+networks:
+  default:
+    internal: true

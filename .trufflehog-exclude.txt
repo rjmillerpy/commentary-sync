@@ -1,0 +1,6 @@
+# Paths trufflehog skips (one regex per line), for the CI `secrets` job and
+# the weekly full-history scan; the pre-commit hook has the same list as its
+# `exclude:` (tests/test_secret_scan_excludes.py keeps them equal).
+# infra/tools/uv.lock: generated; the sha256 of policy_sentry (a Checkov
+# dependency) matches the Sentry token detector.
+^infra/tools/uv\.lock$

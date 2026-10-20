@@ -1,0 +1,12 @@
+# Infrastructure scanning, locked apart from the app: Checkov pins an old
+# boto3 that can't share an environment with the app's. Used by infra/lint.sh.
+[project]
+name = "commentary-sync-infra-tools"
+version = "0.1.0"
+requires-python = "==3.12.*"
+dependencies = [
+    "checkov==3.3.22",
+]
+
+[tool.uv]
+package = false

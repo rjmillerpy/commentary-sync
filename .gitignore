@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+# Real broadcast recordings are for local testing only; never commit them.
+recordings/
+# npm workspaces install at the root (package.json).
+node_modules/

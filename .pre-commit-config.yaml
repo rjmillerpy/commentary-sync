@@ -1,0 +1,70 @@
+# Checks that run on every `git commit`, and in CI on every push.
+#
+#   uv sync
+#   uv run pre-commit install       # once per clone: adds the git hook
+#   make lint                       # what CI runs: every hook on every file
+#
+# A hook that rewrites files (ruff --fix, ruff format, whitespace) stops the
+# commit; review the changes, `git add` them, and commit again.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        # Compose's !reset tag is not plain YAML; `make e2e-check` validates
+        # this file with `docker compose config` instead.
+        exclude: ^compose\.e2e\.yaml$
+      - id: check-toml
+      - id: check-merge-conflict
+      # Also the last line of defence against committing a broadcast recording.
+      - id: check-added-large-files
+      - id: detect-private-key
+
+  # ruff, bandit and mypy run through `uv run`, so pyproject.toml's dev group
+  # (locked in uv.lock) is the single place their versions live, and the place
+  # Dependabot updates. No activated .venv is needed.
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --fix --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+      # Security scan of application code (roadmap item D3). Settings live in
+      # [tool.bandit] in pyproject.toml.
+      - id: bandit
+        name: bandit
+        entry: uv run bandit -q -c pyproject.toml
+        language: system
+        types: [python]
+        files: ^app/
+      # mypy needs the project's own dependencies to understand its imports.
+      - id: mypy
+        name: mypy
+        entry: uv run mypy
+        language: system
+        types: [python]
+        pass_filenames: false # checks the paths configured in pyproject.toml
+
+  # Secret scan of the files being committed (roadmap item D4). Needs the
+  # trufflehog binary on PATH (see README). Fails on any detection, verified
+  # or not. Skipped in the CI lint job, which has a dedicated `secrets` job.
+  - repo: local
+    hooks:
+      - id: trufflehog
+        name: trufflehog (secrets)
+        entry: trufflehog filesystem --no-update --results=verified,unknown,unverified --fail
+        # trufflehog ignores --exclude-paths for files named on the command
+        # line, so the paths in .trufflehog-exclude.txt are excluded here
+        # (tests/test_secret_scan_excludes.py keeps the two equal).
+        exclude: ^infra/tools/uv\.lock$
+        language: system

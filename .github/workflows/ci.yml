@@ -1,0 +1,127 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch: # "Run workflow" button in the Actions tab
+
+# A newer push to the same branch cancels the run still in progress.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege: CI only reads the repo.
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      # uv pinned like every other tool here (the action defaults to latest).
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: "0.13.0"
+          python-version: "3.12"
+          enable-cache: true
+
+      # mypy needs the app's own dependencies to understand its imports.
+      # --locked: install exactly uv.lock, and fail if pyproject.toml changed
+      # without re-running `uv lock`.
+      - name: Install dependencies
+        run: uv sync --locked --all-packages
+
+      # Hook environments (pre-commit-hooks) are cached between runs.
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      # Exactly the hooks `git commit` runs locally. A hook that would rewrite
+      # a file fails the job and --show-diff-on-failure prints the change it
+      # wanted.
+      - name: pre-commit (ruff, ruff format, bandit, mypy, file checks)
+        run: uv run pre-commit run --all-files --show-diff-on-failure
+        env:
+          RUFF_OUTPUT_FORMAT: github # findings appear inline on the commit/PR
+          SKIP: trufflehog # covered by the `secrets` job, which scans commits rather than files
+
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: "0.13.0"
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --locked --all-packages
+
+      # The suite runs on synthetic audio only: no recordings, services or
+      # secrets are needed. Coverage options and the 90% floor (fail_under)
+      # live in pyproject.toml.
+      - name: Pytest
+        run: uv run pytest -q
+
+      - name: Coverage summary
+        if: always()
+        run: uv run coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY" || true
+
+  secrets:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # needs the history between the previous and the new head
+
+      # Scans only the commits in this push (github.event.before..after).
+      # Fails on any detection, verified or not: a key that can't be verified
+      # (e.g. freshly generated) is still a leak.
+      - name: Trufflehog (commits in this push)
+        uses: trufflesecurity/trufflehog@v3.99.2
+        with:
+          # The action's scanner image defaults to "latest"; pin it too. Dependabot
+          # bumps the `uses:` tag above but not this input: update both together.
+          version: 3.99.2
+          extra_args: --results=verified,unknown,unverified --exclude-paths=.trufflehog-exclude.txt
+
+  build:
+    # Only spend time building the image once lint, tests and the secret scan pass.
+    needs: [lint, test, secrets]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      # Build the image and start it with a real Postgres and Redis. --wait
+      # returns once every healthcheck passes, and the API's healthcheck is
+      # /health, so this fails if the app can't reach either of them.
+      # Only the API and what it needs: the scheduler would call ESPN from CI.
+      - name: Start the stack
+        run: docker compose up --build --detach --wait --wait-timeout 180 api
+
+      - name: Smoke test
+        run: |
+          curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8000/health
+          test "$(docker compose exec -T api id -u)" != "0" # not running as root
+
+      # The container migrated a real Postgres on start. `alembic check` fails
+      # if the models describe anything the migrations did not create.
+      - name: Migrations match the models
+        run: docker compose exec -T api alembic check
+
+      - name: Container logs
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Stop the stack
+        if: always()
+        run: docker compose down --volumes

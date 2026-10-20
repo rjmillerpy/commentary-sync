@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "Commentary Sync",
+    "slug": "commentary-sync-listener",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "plugins": [
+      [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": true,
+          "supportsPictureInPicture": false
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Commentary Sync listens to your TV for 10 seconds to line the commentary up with it. The sound never leaves your phone."
+        }
+      ]
+    ],
+    "ios": {
+      "bundleIdentifier": "com.commentarysync.listener",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "audio"
+        ]
+      }
+    },
+    "android": {
+      "package": "com.commentarysync.listener"
+    }
+  }
+}

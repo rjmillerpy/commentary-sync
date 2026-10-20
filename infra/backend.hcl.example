@@ -1,0 +1,8 @@
+# Copy to backend.hcl (git-ignored) and set the bucket: any S3 bucket with
+# versioning on works. rad-shift's state bucket (its state-backend/ stack) is
+# in the same account; a key of its own keeps the two states apart.
+bucket       = "REPLACE-WITH-STATE-BUCKET"
+key          = "commentary-sync/terraform.tfstate"
+region       = "us-east-2"
+encrypt      = true
+use_lockfile = true

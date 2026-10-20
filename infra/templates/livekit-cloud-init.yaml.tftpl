@@ -1,0 +1,110 @@
+#cloud-config
+# The LiveKit VM (infra/livekit.tf). Secrets come from SSM at every boot,
+# into a root-only file; nothing secret is in this template or the AMI.
+package_update: true
+packages:
+  - docker
+write_files:
+  - path: /opt/commentary/fetch-secrets.sh
+    permissions: "0700"
+    content: |
+      #!/bin/sh
+      set -eu
+      get() { aws ssm get-parameter --region ${region} --with-decryption --name "${ssm_prefix}/$1" --query Parameter.Value --output text; }
+      umask 077
+      {
+        echo "LIVEKIT_API_KEY=$(get livekit-api-key)"
+        echo "LIVEKIT_API_SECRET=$(get livekit-api-secret)"
+        echo "REDIS_PASSWORD=$(get redis-password)"
+      } > /opt/commentary/.env
+  - path: /opt/commentary/Caddyfile
+    content: |
+      ${live_host} {
+        reverse_proxy 127.0.0.1:${livekit_http}
+      }
+  - path: /opt/commentary/compose.yaml
+    content: |
+      # Every service on the host network: LiveKit's media ports, and no
+      # container hop for the instance's credentials (IMDS hop limit 1).
+      services:
+        redis:
+          image: ${redis_image}
+          network_mode: host
+          command: ["sh", "-c", "exec redis-server --port ${redis_port} --requirepass \"$$REDIS_PASSWORD\" --appendonly no"]
+          environment:
+            REDIS_PASSWORD: $${REDIS_PASSWORD}
+          restart: unless-stopped
+        livekit:
+          image: ${livekit_image}
+          network_mode: host
+          environment:
+            LIVEKIT_KEYS: "$${LIVEKIT_API_KEY}: $${LIVEKIT_API_SECRET}"
+            LIVEKIT_CONFIG: |
+              port: ${livekit_http}
+              rtc:
+                tcp_port: ${ice_tcp}
+                udp_port: ${ice_udp}
+                node_ip: ${public_ip}
+                use_external_ip: false
+              room:
+                empty_timeout: 300
+              redis:
+                address: 127.0.0.1:${redis_port}
+                password: $${REDIS_PASSWORD}
+                db: 1
+              webhook:
+                api_key: $${LIVEKIT_API_KEY}
+                urls:
+                  - ${webhook_url}
+          depends_on: [redis]
+          restart: unless-stopped
+        egress:
+          image: ${egress_image}
+          network_mode: host
+          environment:
+            EGRESS_CONFIG_BODY: |
+              api_key: $${LIVEKIT_API_KEY}
+              api_secret: $${LIVEKIT_API_SECRET}
+              ws_url: ws://127.0.0.1:${livekit_http}
+              redis:
+                address: 127.0.0.1:${redis_port}
+                password: $${REDIS_PASSWORD}
+                db: 1
+              # No keys: the AWS SDK uses the instance's role (s3:PutObject on hls/*).
+              s3:
+                region: ${region}
+                bucket: ${hls_bucket}
+          depends_on: [livekit]
+          restart: unless-stopped
+        caddy:
+          image: ${caddy_image}
+          network_mode: host
+          volumes:
+            - /opt/commentary/Caddyfile:/etc/caddy/Caddyfile:ro
+            - caddy-data:/data
+          restart: unless-stopped
+      volumes:
+        caddy-data:
+  - path: /etc/systemd/system/commentary.service
+    content: |
+      [Unit]
+      Description=LiveKit, Egress, Redis and Caddy
+      After=docker.service network-online.target
+      Requires=docker.service
+      [Service]
+      Type=oneshot
+      RemainAfterExit=true
+      WorkingDirectory=/opt/commentary
+      ExecStartPre=/opt/commentary/fetch-secrets.sh
+      ExecStart=/usr/local/bin/docker-compose up -d
+      ExecStop=/usr/local/bin/docker-compose down
+      [Install]
+      WantedBy=multi-user.target
+runcmd:
+  - systemctl enable --now docker
+  # Compose v2.40.3, checked against its published SHA-256 before it runs.
+  - curl -fsSL -o /usr/local/bin/docker-compose https://github.com/docker/compose/releases/download/v2.40.3/docker-compose-linux-x86_64
+  - echo "dba9d98e1ba5bfe11d88c99b9bd32fc4a0624a30fafe68eea34d61a3e42fd372  /usr/local/bin/docker-compose" | sha256sum -c -
+  - chmod 0755 /usr/local/bin/docker-compose
+  - systemctl daemon-reload
+  - systemctl enable --now commentary.service
