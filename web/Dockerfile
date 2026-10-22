@@ -46,6 +46,8 @@ ENV NODE_ENV=production \
 # The standalone output mirrors the workspace: the server is in web/.
 COPY --from=build --chown=node:node /repo/web/.next/standalone ./
 COPY --from=build --chown=node:node /repo/web/.next/static ./web/.next/static
+# public/: files served as they are (the voice gate's worklet).
+COPY --from=build --chown=node:node /repo/web/public ./web/public
 # The official image's unprivileged user.
 USER node
 EXPOSE 3000

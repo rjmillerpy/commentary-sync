@@ -32,16 +32,24 @@ export interface FakeMedia {
   failure: string | null;
   /** The byte the analyser fills each sample with: 128 is silence. */
   sampleByte: number;
-  contexts: { closed: boolean; sampleRate: number; startedAt: number }[];
+  contexts: { closed: boolean; sampleRate: number; startedAt: number; audioWorklet: { addModule: jest.Mock } }[];
   /** Every AudioWorkletNode made, newest last: a test plays audio into it with `deliver`. */
   worklets: FakeWorkletNode[];
   /** A name to make audioWorklet.addModule fail with, or null. */
   workletFailure: string | null;
+  /** Every MediaStreamDestination's stream, newest last: what a context sends on. */
+  destinations: FakeStream[];
 }
 
 /** An AudioWorkletNode: the processor's messages are delivered by the test. */
 export class FakeWorkletNode {
-  readonly port: { onmessage: ((event: MessageEvent) => void) | null } = { onmessage: null };
+  /** What the main thread posted to the processor, oldest first. */
+  readonly posted: unknown[] = [];
+  readonly port = {
+    onmessage: null as ((event: MessageEvent) => void) | null,
+    postMessage: (message: unknown) => this.posted.push(message),
+  };
+  readonly connect = jest.fn();
   constructor(
     readonly context: unknown,
     readonly name: string,
@@ -49,7 +57,11 @@ export class FakeWorkletNode {
   ) {}
   /** What the processor posts: `samples` starting at context frame `frame`. */
   deliver(frame: number, samples: Float32Array): void {
-    this.port.onmessage?.({ data: { frame, samples } } as MessageEvent);
+    this.post({ frame, samples });
+  }
+  /** Any message from the processor. */
+  post(data: unknown): void {
+    this.port.onmessage?.({ data } as MessageEvent);
   }
 }
 
@@ -62,6 +74,7 @@ export function installMedia(): FakeMedia {
     contexts: [],
     worklets: [],
     workletFailure: null,
+    destinations: [],
   };
   Object.defineProperty(navigator, "mediaDevices", {
     configurable: true,
@@ -106,6 +119,11 @@ export function installMedia(): FakeMedia {
     }
     createMediaStreamSource() {
       return { connect: jest.fn(), disconnect: jest.fn() };
+    }
+    createMediaStreamDestination() {
+      const stream = new FakeStream("on-air");
+      media.destinations.push(stream);
+      return { stream };
     }
     async close() {
       this.closed = true;

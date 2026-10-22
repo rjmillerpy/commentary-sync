@@ -10,6 +10,7 @@ test("a reload mid-broadcast resumes the same stream", async ({ page, browser, r
   const studio = new Studio(page);
   const handle = await studio.signUp("reloader");
   await studio.pickGame(SEEDED_GAME);
+  await studio.checkTv();
   await studio.goLive();
   const before = await liveStreamOf(request, handle);
   const listener = await register(request, "listener");
@@ -17,6 +18,7 @@ test("a reload mid-broadcast resumes the same stream", async ({ page, browser, r
 
   await page.reload();
   await expect(page.getByRole("button", { name: "Resume" })).toBeVisible();
+  await studio.checkTv(); // a reload needs a new check
   await studio.resume();
 
   const after = await liveStreamOf(request, handle);

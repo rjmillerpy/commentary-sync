@@ -23,6 +23,7 @@ test("a listener's TV recording is found in the commentator's room, and gives on
   const studio = new Studio(page);
   const handle = await studio.signUp("syncer");
   await studio.pickGame(SEEDED_GAME);
+  await studio.checkTv();
   await studio.goLive();
   await expect(page.getByRole("status").filter({ hasText: "Listeners can sync their TVs to yours" })).toBeVisible();
   const stream = await liveStreamOf(request, handle);

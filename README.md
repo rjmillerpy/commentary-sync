@@ -441,9 +441,13 @@ with hot reload). A commentator:
 1. signs in or creates an account, then picks a handle if they have none;
 2. picks a game that is scheduled or on now;
 3. checks their mic: chooses one and watches a level meter (echo
-   cancellation, noise suppression and auto gain are on, for talking over a TV);
-4. goes live: the studio creates the stream (`POST /streams`), gets a
-   publisher token and sends the mic to the stream's LiveKit room; and ends it.
+   cancellation and noise suppression are on, for talking over a TV; auto
+   gain is off, see below);
+4. checks their TV (see "Keeping the game off air"), and can't go live until
+   it passes;
+5. goes live: the studio creates the stream (`POST /streams`), gets a
+   publisher token and sends the gated mic to the stream's LiveKit room; and
+   ends it.
 
 If LiveKit loses the connection it reconnects on its own and the studio says
 so. A reload, a crash or LiveKit giving up leaves the stream live in the API
@@ -500,6 +504,48 @@ against the compose stack: sign up, pick a handle and a game, the meter moved,
 go live; a separate LiveKit listener heard the commentator's microphone track;
 after a reload the studio offered Resume, and the listener heard it again;
 End stream ended it in the API.
+
+### Keeping the game off air
+
+A commentator's mic also hears their TV, and rebroadcasting the game's sound
+is the main legal risk. The browser's echo cancellation can't remove it (the
+TV isn't the browser's own output), and noise suppression keeps it (the TV's
+announcers are speech). What does separate them is distance: the commentator
+is close to the mic and the TV isn't, so their voice is much louder there.
+
+- **The TV check** ([web/src/lib/tvCheck.ts](web/src/lib/tvCheck.ts)). Before
+  going live, the commentator stays quiet for 5 s with the game on, then talks
+  for 5 s. The TV's level is its loudest moments (95th percentile of 50 ms
+  levels); the voice's is a typical loud syllable (75th). 20 dB or more apart
+  is clear; 12 to 20 goes live with a note that the TV may be faintly heard
+  under their voice; less is refused, with what to change (turn the TV down,
+  move the mic closer, move away from the TV). A new mic, or a reload, needs
+  a new check.
+- **The voice gate** ([web/public/voice-gate.js](web/public/voice-gate.js),
+  [web/src/lib/gate.ts](web/src/lib/gate.ts)). The broadcast is the mic
+  through a gate on the audio thread (an AudioWorklet): silent below a
+  threshold 6 dB above the TV's loudest (or 20 dB under the voice in a quiet
+  room), open above it. A 20 ms look-ahead keeps first syllables, a 250 ms
+  hold keeps it open between words. So between the commentator's sentences
+  listeners hear nothing at all; while they talk, the TV is under their voice
+  by the margin the check measured. Until a check sets the threshold it lets
+  nothing through. Auto gain is off on the broadcast mic: it would turn the
+  TV up in every pause.
+- **The live watch.** While live, if the room's background (the 20th
+  percentile of the last 10 s) is 6 dB louder than the TV was at the check,
+  the studio tells the commentator.
+
+The worklet is a plain file in `web/public/`, served as is: building it from
+a bundled function's source broke as soon as Jest's coverage instrumented
+that function, and a bundler could do the same. Its tests run that file. The
+e2e test checks it in a real browser: with the gate disabled a "TV" 30 dB
+under the voice reached listeners at -54 dBFS; with it, silence.
+
+All the numbers are first guesses, to be tuned on real rooms. Not done yet:
+the server checking streams for game audio itself (see the roadmap), and a
+setup for commentators who can't get enough distance (a headset mic, or the
+TV's sound into the computer by cable; the room recording for TV sync then
+needs that input instead of the mic).
 
 ## Checks
 

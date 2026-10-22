@@ -1,7 +1,9 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import Studio from "@/components/Studio";
+import { toPower } from "@/lib/gate";
+import { QUIET_SECONDS, TALK_SECONDS } from "@/lib/tvCheck";
 import { control } from "../_fakeLiveKit";
 import { type FakeApi, OWN_LIVE_STREAMS, STILL_LIVE, studioApi } from "../_fakeApi";
 import { type FakeMedia, installMedia } from "../_fakeMedia";
@@ -19,8 +21,25 @@ beforeEach(() => {
   media = installMedia();
 });
 
+/** Runs the TV check with the TV and the voice at these levels (dBFS). */
+async function checkTv(tvDb: number, voiceDb: number) {
+  const start = await screen.findByRole("button", { name: /Start the TV check|Check again/ });
+  await waitFor(() => expect(start).toBeEnabled());
+  jest.useFakeTimers();
+  fireEvent.click(start);
+  const gate = media.worklets.filter((node) => node.name === "voice-gate").at(-1)!;
+  act(() => {
+    gate.post({ power: toPower(tvDb), openShare: 0 });
+    jest.advanceTimersByTime(QUIET_SECONDS * 1_000);
+    gate.post({ power: toPower(voiceDb), openShare: 1 });
+    jest.advanceTimersByTime(TALK_SECONDS * 1_000);
+  });
+  jest.useRealTimers();
+}
+
 async function readyToGoLive() {
   await userEvent.click(await screen.findByLabelText(/Houston Texans at Jacksonville Jaguars/));
+  await checkTv(-50, -20);
   await waitFor(() => expect(screen.getByRole("button", { name: "Go live" })).toBeEnabled());
 }
 
@@ -33,7 +52,9 @@ test("smoke: sign in, pick a game, go live and end", async () => {
   await readyToGoLive();
   await userEvent.click(screen.getByRole("button", { name: "Go live" }));
   expect(await screen.findByText("Live: listeners can hear you")).toBeInTheDocument();
-  expect(control.rooms[0]!.published[0]!.track).toBe(media.opened[0]!.track);
+  // On air: the gate's output, never the raw microphone.
+  expect(control.rooms[0]!.published[0]!.track).toBe(media.destinations[0]!.track);
+  expect(screen.getByRole("button", { name: "Check again" })).toBeDisabled();
   expect(screen.getByLabelText(/Houston Texans/)).toBeDisabled();
   expect(screen.getByLabelText("Microphone")).toBeDisabled();
   await userEvent.click(screen.getByRole("button", { name: "End stream" }));
@@ -73,8 +94,22 @@ test("after a reload mid-broadcast, the studio offers to resume on the same game
   renderSignedIn(<Studio />);
   const resume = await screen.findByRole("button", { name: "Resume" });
   expect(screen.getByLabelText(/Houston Texans/)).toBeChecked();
-  await waitFor(() => expect(resume).toBeEnabled()); // once the mic is open
+  expect(resume).toBeDisabled(); // a reload needs a new TV check
+  await checkTv(-50, -20);
+  await waitFor(() => expect(resume).toBeEnabled());
   await userEvent.click(resume);
   expect(await screen.findByText("Live: listeners can hear you")).toBeInTheDocument();
   expect(fake.paths()).not.toContain("POST /streams");
+});
+
+test("going live waits for a TV check the TV passes", async () => {
+  renderSignedIn(<Studio />);
+  await userEvent.click(await screen.findByLabelText(/Houston Texans at Jacksonville Jaguars/));
+  const goLive = screen.getByRole("button", { name: "Go live" });
+  expect(goLive).toBeDisabled();
+  await checkTv(-25, -20);
+  expect(await screen.findByText(/would go out to listeners/)).toBeInTheDocument();
+  expect(goLive).toBeDisabled();
+  await checkTv(-50, -20);
+  await waitFor(() => expect(goLive).toBeEnabled());
 });

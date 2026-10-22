@@ -27,7 +27,7 @@ export default function LiveControls({ broadcast, canStart, onStart, onResume }:
   const { phase, error, end } = broadcast;
   return (
     <section className="card" aria-labelledby="live-title">
-      <h2 id="live-title">3. Go live</h2>
+      <h2 id="live-title">4. Go live</h2>
       <p role="status" className={phase === "live" ? "status live" : "status"}>
         {STATUS[phase]}
       </p>
