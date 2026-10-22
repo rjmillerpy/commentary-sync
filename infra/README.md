@@ -93,6 +93,12 @@ They're part of `make check`. Checkov's deliberate exceptions are inline
 `checkov:skip` comments, each with its reason; most are about cost (a WAF,
 customer KMS keys, access logs, Container Insights).
 
+Checkov is locked apart from the app, in `tools/`. Checkov pins asteval 1.0.6,
+which has two sandbox escapes, so `tools/pyproject.toml` overrides it to
+1.0.10; `make infra-check` proves Checkov still runs on it. It also pulls in
+`ecdsa`, whose timing-attack advisory has no fix; Checkov never signs anything
+with it here, and it only ever scans this repo's own Terraform.
+
 ## Design decisions, and the test that pins each
 
 | Decision | Why | Test (`tests/main.tftest.hcl`) |

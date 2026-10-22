@@ -10,3 +10,5 @@ dependencies = [
 
 [tool.uv]
 package = false
+# Checkov pins asteval 1.0.6, which has two sandbox escapes fixed in 1.0.9.
+override-dependencies = ["asteval==1.0.10"]
