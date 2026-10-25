@@ -10,7 +10,7 @@ import {
   streamStatus,
   waitForRecorded,
 } from "../support/api";
-import { expectSilence, expectTheTone } from "../support/expectations";
+import { expectTheTone } from "../support/expectations";
 import { hearPlaylist, hearRoom, openListener } from "../support/listener";
 import { SEEDED_GAME } from "../support/stack";
 import { Studio } from "../support/studio";
@@ -28,7 +28,6 @@ test("a commentator goes live and a listener hears them, live and delayed", asyn
   const handle = await studio.signUp("caster");
   await studio.pickGame(SEEDED_GAME);
   expect(await studio.micPeak(), "the mic check meter moves").toBeGreaterThan(0);
-  await studio.checkTv();
   await studio.goLive();
 
   const stream = await liveStreamOf(request, handle);
@@ -37,12 +36,6 @@ test("a commentator goes live and a listener hears them, live and delayed", asyn
 
   await test.step("live, over WebRTC", async () => {
     expectTheTone(await hearRoom(listening, await listenerToken(request, listener, stream.id)));
-  });
-
-  await test.step("while the commentator pauses, the TV is not broadcast", async () => {
-    await studio.pause();
-    expectSilence(await hearRoom(listening, await listenerToken(request, listener, stream.id)));
-    await studio.talk();
   });
 
   const playlist = await listenerPlaylist(request, listener, stream.id);

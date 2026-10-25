@@ -3,8 +3,7 @@
  * Scripts: the studio's own files, and inline ones only with this request's
  * nonce (Next marks its own with it). `blob:` for the AudioWorklet that
  * records the room for TV sync (lib/reference.ts), which loads from a blob
- * URL; the voice gate's worklet is the studio's own file (lib/gate.ts).
- * Connections: the API and the LiveKit server only, so an injected
+ * URL. Connections: the API and the LiveKit server only, so an injected
  * script couldn't send anything elsewhere. Never framed.
  */
 

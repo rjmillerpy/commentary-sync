@@ -1,12 +1,10 @@
 /** The browser's microphones: listing them, opening one, and how loud it is. */
 
 // Speech cleanup on: commentators talk over a TV, often without headphones.
-// Auto gain off: it turns the TV up whenever the commentator pauses, which
-// is exactly when the voice gate (lib/gate.ts) needs it quiet.
 export const MICROPHONE_CONSTRAINTS: MediaTrackConstraints = {
   echoCancellation: true,
   noiseSuppression: true,
-  autoGainControl: false,
+  autoGainControl: true,
 };
 
 const ANALYSER_FFT_SIZE = 1024;

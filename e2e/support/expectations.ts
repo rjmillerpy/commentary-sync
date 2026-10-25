@@ -13,8 +13,3 @@ export function expectTheTone(heard: Heard): void {
   );
   expect(heard.level).toBeGreaterThan(AUDIBLE_DBFS);
 }
-
-/** The listener heard nothing: the studio's voice gate kept the room off air. */
-export function expectSilence(heard: Heard): void {
-  expect(heard.level, `loudest at ${heard.level} dBFS`).toBeLessThan(AUDIBLE_DBFS);
-}
