@@ -1,7 +1,8 @@
 """Accounts: register, sign in, and find who an access token belongs to."""
 
 import logging
-from datetime import datetime
+import uuid
+from datetime import datetime, timedelta
 
 from redis.asyncio import Redis
 from sqlalchemy import select
@@ -16,9 +17,9 @@ from app.auth.errors import (
     LoginLockedError,
 )
 from app.auth.models import User
-from app.auth.schema import Credentials, Registration, TokenPair
+from app.auth.schema import Credentials, GuestToken, Registration, TokenPair
 from app.auth.sessions import start_session
-from app.auth.tokens import read_access_token
+from app.auth.tokens import create_guest_token, read_access_token
 from app.common.config import Settings
 
 logger = logging.getLogger(__name__)
@@ -99,6 +100,16 @@ async def authenticate(db: AsyncSession, access_token: str, settings: Settings) 
     if user is None or not is_current:
         raise InvalidTokenError("access token no longer valid")
     return user
+
+
+def issue_guest_token(settings: Settings, *, now: datetime) -> GuestToken:
+    """A token for a new guest: listening without an account. Nothing is
+    stored; the guest is a random ID that lives as long as the token."""
+    lifetime = timedelta(seconds=settings.guest_token_seconds)
+    token = create_guest_token(
+        uuid.uuid4(), secret=settings.auth_secret.get_secret_value(), lifetime=lifetime, now=now
+    )
+    return GuestToken(access_token=token, expires_in=settings.guest_token_seconds)
 
 
 async def _find_by_email(db: AsyncSession, email: str) -> User | None:

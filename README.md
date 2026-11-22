@@ -122,6 +122,7 @@ read-only events:
 | `POST /auth/refresh` | a refresh token for a new pair; the old refresh token stops working |
 | `POST /auth/logout` | signs that device out (204, also when already signed out) |
 | `GET /auth/me` | the signed-in account; 401 without a valid access token |
+| `POST /auth/guest` | a guest token: listening without an account (no refresh token; ask again when it runs out) |
 
 How it works ([app/auth](app/auth)):
 
@@ -138,6 +139,15 @@ How it works ([app/auth](app/auth)):
   again means it was copied, so every session of that account is ended and
   the user signs in again. Signing out deletes the session instead, so a
   signed-out client retrying its old token isn't taken for an attacker.
+- **Guests** listen without an account. A guest token is a JWT for a random
+  guest ID with the "guest" audience, which account tokens don't have, so
+  neither is ever read as the other; it lasts 12 hours
+  (`COMMENTARY_GUEST_TOKEN_SECONDS`) and nothing about guests is stored. The
+  four listening routes (room token, playlist, sync, check-in) take
+  `Depends(current_listener)`, which accepts either; everything else still
+  needs an account, which a test checks route by route. 30 guest tokens an
+  hour per client address: enough for a household's phones, not for minting
+  them in bulk.
 - **Lockout.** Five wrong passwords for one account lock it for 15 minutes from the
   first of them, even for the right password (429 with `Retry-After`). The
   count lives in Redis under a hash of the email, with its expiry set in the
@@ -147,7 +157,8 @@ How it works ([app/auth](app/auth)):
   503 rather than allow unlimited guesses.
 - **Rate limits per client IP**
   ([app/common/rate_limit.py](app/common/rate_limit.py)): login 10 a minute
-  and 100 an hour, register 5 an hour, refresh 30 a minute. Over the limit is
+  and 100 an hour, register 5 an hour, refresh 30 a minute, guest tokens 30
+  an hour. Over the limit is
   429 with `Retry-After`. The lockout stops guessing one account's password;
   these stop one client guessing across many accounts or creating them in
   bulk. X-Forwarded-For is ignored, since anyone can set it; IPv6 clients are
@@ -530,31 +541,69 @@ GitHub Actions.
 ## The listener app
 
 `listener/` is the listener app, built with Expo (React Native) for iPhone and
-Android. A listener:
+Android. No account is needed: it runs on a guest token
+(`client/src/guest.ts`, `listener/src/hooks/useAccess.tsx`). A listener goes
+through three screens:
 
-1. signs in or creates an account (the refresh token is kept in the phone's
-   secure storage, Keychain or Keystore, so the app stays signed in);
-2. picks a game that is on or coming up, then a commentator live on it;
-3. hears them through the stream's HLS recording, held behind real time by a
-   delay they nudge (±5 s and ±0.5 s, from 0 to 5 minutes) until the commentary
-   matches their TV. Audio keeps playing with the screen off.
+1. **Games**, on now or coming up: the ones someone is commentating first,
+   with how many are, then the rest.
+2. **Commentators** live on that game, with their listener counts.
+3. **Listening.** It syncs with the TV straight away, by itself, and plays
+   the commentary through the stream's HLS recording, held behind real time
+   to match. Audio keeps playing with the screen off.
 
-How the delay works ([listener/src/lib/delay.ts](listener/src/lib/delay.ts)):
+The listening screen, redesigned after the first phone test (where listeners
+found the old one confusing), is from top to bottom:
+
+- **One sync status** ([listener/src/lib/syncStatus.ts](listener/src/lib/syncStatus.ts),
+  `components/SyncIndicator.tsx`). Every message the old screen had in
+  separate lines comes down to one of seven states, each with an icon, a
+  colour and words: *Synced with your TV*, *Syncing…* (listening, matching,
+  building up the delay, reconnecting), *Catching up*, *Out of sync · Tap to
+  resync*, *You're 0:42 behind · Jump back in*, *Can't hear your TV* and *Sync
+  off*. When there is something to do, the status is the button. Screen
+  readers hear each change (at once when sync is broken), and the first time
+  it changes it explains itself in a line under it.
+- **Pause commentary.** The listener's own pause is never undone behind their
+  back: no automatic re-checks while paused, and one tap jumps straight back.
+- **Commentary volume** in ten steps, with its own mute (the TV's volume is
+  the TV remote's), remembered on the phone.
+- **Commentary early or late?** A fine-tune of ±0.1 s steps, up to 10 s,
+  added to the synced delay and applied as it's tapped, for what only the
+  listener's ears can tell (Bluetooth headphones, a TV that delays its
+  sound). Remembered on the phone.
+- **More options**, folded away: turning sync off and setting the delay by
+  hand (±5 s and ±1 s), and the exact numbers behind the status.
+
+Lists show placeholders while they load, every problem says what happened
+with one way out (Try again, Pick another commentator), and Refresh is a
+button as well as a pull. Text colours are checked by a test for 4.5:1
+contrast, touch targets are at least 48 points (the main ones 56), the
+screens scroll so larger system text never clips, and nothing animates when
+the phone asks for reduced motion.
+
+How the delay is held ([listener/src/lib/delay.ts](listener/src/lib/delay.ts)):
 the segments carry the time they were recorded, so the player knows how far
 behind real time it is playing. Twice a second the app compares that with the
-chosen delay and seeks back or forward to match. If the recording doesn't
-reach back far enough yet (a listener 30 s behind, ten seconds into the
-stream), it pauses until the delay has built up, the way pausing a TV does,
-and says so. expo-video's own live-offset setting would do this only on iOS;
-this works on both.
+target and corrects it the least noticeable way:
 
-The app uses the shared client (`client/`) for every API call and for the
-session, so it behaves like the studio: one refresh at a time, and the same
-error sentences. Tests (`listener/__tests__/`, mirroring `src/`) use jest-expo
+- within **±0.25 s** it counts as in sync (it was ±0.5 s on a 0.5 s grid, and
+  the phone test came out about half a second off; delays now go in tenths);
+- up to 2 s off, it plays **5% slower or faster** (preserving pitch, which
+  nobody hears) until it's back: about 20 s per second won back;
+- further off, it **seeks**, at most once every 10 s; three seeks that don't
+  land and it stops and says *Out of sync*, rather than seek forever;
+- if the recording doesn't reach back far enough yet (a listener 30 s
+  behind, ten seconds into the stream), it pauses until the delay has built
+  up, the way pausing a TV does.
+
+expo-video's own live-offset setting would do this only on iOS; this works
+on both. The app uses the shared client (`client/`) for every API call, so it
+behaves like the studio, with the same error sentences. Tests (`listener/__tests__/`, mirroring `src/`) use jest-expo
 and React Native Testing Library and fake only the phone's boundaries: `fetch`
 (the shared FakeApi), secure storage, and the media player (a fake on a
-timeline the test moves, so seeking and holding are checked). 79 tests, 99.5%
-statement coverage. `npx expo export` bundles it for Android and iOS (about
+timeline the test moves, at the speed the app sets, so seeking, holding and
+speed corrections are checked). 243 tests, 100% line coverage. `npx expo export` bundles it for Android and iOS (about
 720 modules, 2.2 MB of Hermes bytecode each), which proves the workspace and
 the shared client resolve under Metro.
 
@@ -677,12 +726,13 @@ so the app re-checks the TV:
   playback recovering.
 
 An automatic check listens for 6 seconds (a requested sync, 10) and only
-changes the delay when the TV really moved (by more than half a second). It
+changes the delay when the TV really moved (by more than a quarter second). It
 *mutes* the commentary meanwhile rather than pausing it, so the commentary's
 place in time stays put. If the TV has got ahead, the listener is told how
 long to pause it. A check that can't hear the TV says nothing the first two
-times; after three in a row it says so. **Keep in sync automatically** turns
-it off. Nothing is checked before the first sync, or while offline.
+times; after three in a row it says so. **Keep in sync with my TV** (under
+More options) turns it off. Nothing is checked before the first sync, while
+the listener has paused, or while offline.
 
 **The app's own audio recovers by itself.** It used to stop with "The audio
 stopped" when the connection dropped. Now:
@@ -691,7 +741,7 @@ stopped" when the connection dropped. Now:
 - it reloads at once when the phone's connection comes back;
 - the delay control then puts it back at exactly the same delay, since every
   segment carries its recording time;
-- a "No connection" banner shows while offline;
+- the sync status says "Reconnecting…" while offline;
 - the playlist lookup waits out outages instead of failing;
 - check-ins and the stream-ended check already shrugged off failures.
 

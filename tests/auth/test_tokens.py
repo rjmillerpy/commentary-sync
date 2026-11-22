@@ -7,12 +7,15 @@ import pytest
 from app.auth.errors import InvalidTokenError
 from app.auth.tokens import (
     ALGORITHM,
+    GUEST_AUDIENCE,
     ISSUER,
     AccessClaims,
     create_access_token,
+    create_guest_token,
     hash_refresh_token,
     new_refresh_token,
     read_access_token,
+    read_guest_token,
 )
 
 # 64 bytes, so the HS512 case below signs without a short-key warning.
@@ -111,3 +114,51 @@ def test_a_refresh_token_hash_is_stable_and_hides_the_token() -> None:
     assert len(hash_refresh_token(token)) == 64
     assert token not in hash_refresh_token(token)
     assert hash_refresh_token(token) != hash_refresh_token(new_refresh_token())
+
+
+GUEST = uuid.UUID("5d3a1f0e-2b4c-4d6e-8f10-a2b3c4d5e6f7")
+
+
+def guest(now: datetime | None = None) -> str:
+    return create_guest_token(GUEST, secret=SECRET, lifetime=LIFETIME, now=now or datetime.now(UTC))
+
+
+def test_a_guest_token_reads_back_as_its_guest() -> None:
+    assert read_guest_token(guest(), secret=SECRET) == GUEST
+
+
+def test_an_expired_guest_token_is_rejected() -> None:
+    with pytest.raises(InvalidTokenError):
+        read_guest_token(guest(now=datetime.now(UTC) - 2 * LIFETIME), secret=SECRET)
+
+
+def test_a_guest_token_is_never_an_account_token() -> None:
+    """Security: the guest audience keeps a guest out of every signed-in route."""
+    with pytest.raises(InvalidTokenError):
+        read_access_token(guest(), secret=SECRET)
+
+
+def test_an_account_token_is_never_a_guest_token() -> None:
+    with pytest.raises(InvalidTokenError):
+        read_guest_token(issue(), secret=SECRET)
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        signed({**valid_payload(), "aud": "someone-else"}),
+        signed(
+            {key: value for key, value in valid_payload(aud=GUEST_AUDIENCE).items() if key != "iat"}
+        ),
+        signed({**valid_payload(aud=GUEST_AUDIENCE), "sub": "not-a-uuid"}),
+        jwt.encode(
+            {**valid_payload(), "aud": GUEST_AUDIENCE},
+            "another-secret-" + "y" * 40,
+            algorithm=ALGORITHM,
+        ),
+    ],
+    ids=["other-audience", "no-iat", "bad-sub", "wrong-secret"],
+)
+def test_guest_tokens_are_checked_like_any_other(token: str) -> None:
+    with pytest.raises(InvalidTokenError):
+        read_guest_token(token, secret=SECRET)

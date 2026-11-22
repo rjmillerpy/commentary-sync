@@ -16,7 +16,8 @@
     "./structure": "./src/structure.ts",
     "./clock": "./src/clock.ts",
     "./features": "./src/features.ts",
-    "./resample": "./src/resample.ts"
+    "./resample": "./src/resample.ts",
+    "./guest": "./src/guest.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

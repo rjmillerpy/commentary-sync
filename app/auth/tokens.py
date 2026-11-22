@@ -1,4 +1,8 @@
-"""Access tokens (signed JWTs) and refresh tokens (random strings, stored hashed)."""
+"""Access tokens (signed JWTs) and refresh tokens (random strings, stored hashed).
+
+Guest tokens are JWTs too, for listening without an account: they name a
+random guest, not an account, and carry the "guest" audience, which account
+tokens don't, so neither is ever read as the other."""
 
 import hashlib
 import secrets
@@ -15,6 +19,8 @@ ALGORITHM = "HS256"
 ISSUER = "commentary-sync"
 REQUIRED_CLAIMS = ("exp", "iat", "iss", "sub", "ver")
 REFRESH_TOKEN_BYTES = 32  # 256 bits: too many to guess, so a fast hash is enough to store it
+GUEST_AUDIENCE = "guest"
+GUEST_REQUIRED_CLAIMS = ("exp", "iat", "iss", "sub", "aud")
 
 
 @dataclass(frozen=True)
@@ -32,6 +38,12 @@ class _Payload(BaseModel):
 
     sub: uuid.UUID
     ver: int
+
+
+class _GuestPayload(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    sub: uuid.UUID
 
 
 def create_access_token(
@@ -65,6 +77,36 @@ def read_access_token(token: str, *, secret: str) -> AccessClaims:
     except (jwt.InvalidTokenError, ValidationError) as error:
         raise InvalidTokenError("access token rejected") from error
     return AccessClaims(user_id=payload.sub, session_version=payload.ver)
+
+
+def create_guest_token(
+    guest_id: uuid.UUID, *, secret: str, lifetime: timedelta, now: datetime
+) -> str:
+    payload = {
+        "sub": str(guest_id),
+        "aud": GUEST_AUDIENCE,
+        "iss": ISSUER,
+        "iat": now,
+        "exp": now + lifetime,
+    }
+    return jwt.encode(payload, secret, algorithm=ALGORITHM)
+
+
+def read_guest_token(token: str, *, secret: str) -> uuid.UUID:
+    """The guest a guest token names, if it checks out as read_access_token's do."""
+    try:
+        decoded = jwt.decode(
+            token,
+            secret,
+            algorithms=[ALGORITHM],
+            issuer=ISSUER,
+            audience=GUEST_AUDIENCE,
+            options={"require": list(GUEST_REQUIRED_CLAIMS)},
+        )
+        payload = _GuestPayload.model_validate(decoded)
+    except (jwt.InvalidTokenError, ValidationError) as error:
+        raise InvalidTokenError("guest token rejected") from error
+    return payload.sub
 
 
 def new_refresh_token() -> str:

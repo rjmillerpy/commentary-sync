@@ -110,12 +110,17 @@ async def publisher_access(
 
 
 async def listener_access(
-    db: AsyncSession, user: User, stream_id: uuid.UUID, settings: Settings, *, now: datetime
+    db: AsyncSession,
+    listener_id: uuid.UUID,
+    stream_id: uuid.UUID,
+    settings: Settings,
+    *,
+    now: datetime,
 ) -> RoomAccess:
-    """A token that lets a signed-in account hear a live stream."""
+    """A token that lets a listener (an account or a guest) hear a live stream."""
     stream = _live(await get_stream(db, stream_id))
     grant = RoomGrant(
-        room=room_name(stream.id), identity=f"listener-{user.id}", role=RoomRole.LISTENER
+        room=room_name(stream.id), identity=f"listener-{listener_id}", role=RoomRole.LISTENER
     )
     return _room_access(stream, grant, settings, now)
 
@@ -123,7 +128,7 @@ async def listener_access(
 async def listener_playlist(
     db: AsyncSession, stream_id: uuid.UUID, settings: Settings
 ) -> PlaylistAccess:
-    """Where a signed-in account plays a live stream's HLS recording.
+    """Where a listener plays a live stream's HLS recording.
     Raises NotRecordingError until the recording has started."""
     stream = _live(await get_stream(db, stream_id))
     if settings.hls_base_url is None or stream.recording_id is None or stream.hls_path is None:

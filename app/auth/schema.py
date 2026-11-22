@@ -50,6 +50,16 @@ class TokenPair(FrozenModel):
     expires_in: int
 
 
+class GuestToken(FrozenModel):
+    """Listening without an account. Send it as `Authorization: Bearer ...`
+    to the listening routes; it lasts `expires_in` seconds, then ask for
+    another."""
+
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"  # noqa: S105  # the OAuth 2 scheme name, not a secret
+    expires_in: int
+
+
 class UserResponse(FrozenModel):
     id: uuid.UUID
     email: str

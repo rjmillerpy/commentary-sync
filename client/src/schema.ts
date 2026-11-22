@@ -18,6 +18,13 @@ export const TokenPairSchema = z.object({
 });
 export type TokenPair = z.infer<typeof TokenPairSchema>;
 
+/** Listening without an account: no refresh token, ask for another when it runs out. */
+export const GuestTokenSchema = z.object({
+  access_token: z.string(),
+  expires_in: z.number().int(),
+});
+export type GuestToken = z.infer<typeof GuestTokenSchema>;
+
 export const CommentatorSchema = z.object({
   id: z.string(),
   handle: z.string(),

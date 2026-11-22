@@ -10,7 +10,6 @@
 import { ApiError } from "@commentary-sync/client/api";
 import { measureClockOffset } from "@commentary-sync/client/clock";
 import { ANALYSIS_SAMPLE_RATE, extractFeatures, type Features } from "@commentary-sync/client/features";
-import { useSession } from "@commentary-sync/client/react";
 import { resample } from "@commentary-sync/client/resample";
 import type { SyncResult } from "@commentary-sync/client/schema";
 import {
@@ -22,6 +21,7 @@ import {
 } from "expo-audio";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useAuthorized } from "@/hooks/useAccess";
 import { api } from "@/lib/api";
 import { AUTO_LISTEN_SECONDS, judgeRecheck } from "@/lib/autoSync";
 import { type DelayPlan, NOT_FOUND_RETRIES, planDelay, RECORDING_SECONDS, RETRY_MS } from "@/lib/tvSync";
@@ -33,7 +33,10 @@ export type TvSyncState =
   | { kind: "matching"; auto: boolean }
   | ({ kind: "synced"; auto: boolean; changed: boolean; at: number } & DelayPlan)
   | { kind: "not-found"; auto: boolean; misses: number }
-  | { kind: "failed"; auto: boolean; detail: string };
+  | { kind: "failed"; auto: boolean; detail: string; reason: FailureReason };
+
+/** "microphone": the listener refused it, and only Settings can undo that. */
+export type FailureReason = "microphone" | "other";
 
 export interface SyncOptions {
   auto?: boolean;
@@ -51,7 +54,7 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 class MicrophoneDeniedError extends Error {}
 
 export function useTvSync(streamId: string, onPlan: (plan: DelayPlan) => void, currentDelay: number) {
-  const { authorized } = useSession();
+  const authorized = useAuthorized();
   const delayNow = useRef(currentDelay);
   useEffect(() => {
     delayNow.current = currentDelay;
@@ -89,7 +92,8 @@ export function useTvSync(streamId: string, onPlan: (plan: DelayPlan) => void, c
         if (changed && isMounted.current) onPlan(plan);
         show({ kind: "synced", auto, changed, at: Date.now(), ...plan });
       } catch (failure) {
-        show({ kind: "failed", auto, detail: describe(failure) });
+        const reason = failure instanceof MicrophoneDeniedError ? "microphone" : "other";
+        show({ kind: "failed", auto, detail: describe(failure), reason });
       }
     },
     [authorized, onPlan, stream, streamId],

@@ -15,11 +15,16 @@ export class FakePlayer {
   /** Seconds behind live; null until the player has read the playlist's clock. */
   currentOffsetFromLive: number | null = null;
   muted = false;
+  volume = 1;
+  playbackRate = 1;
+  preservesPitch = false;
   readonly seeks: number[] = [];
   /** Sources reloaded after a failure, in order. */
   readonly reloads: string[] = [];
   /** While true, a reload fails too (the connection is still down). */
   keepsFailing = false;
+  /** While true, a seek is asked for but the player stays where it was. */
+  ignoresSeeks = false;
 
   constructor(readonly source: string | null) {}
 
@@ -39,14 +44,17 @@ export class FakePlayer {
 
   seekBy(seconds: number): void {
     this.seeks.push(seconds);
+    if (this.ignoresSeeks) return;
     this.currentTime += seconds;
     if (this.currentOffsetFromLive !== null) this.currentOffsetFromLive -= seconds;
   }
 
-  /** `seconds` of real time pass: live moves on, and so does a playing player. */
+  /** `seconds` of real time pass: live moves on, and so does a playing
+   * player, at its playback rate (slower than 1 falls further behind live). */
   advance(seconds: number): void {
-    if (this.currentOffsetFromLive !== null && !this.playing) this.currentOffsetFromLive += seconds;
-    if (this.playing) this.currentTime += seconds;
+    const played = this.playing ? seconds * this.playbackRate : 0;
+    if (this.currentOffsetFromLive !== null) this.currentOffsetFromLive += seconds - played;
+    this.currentTime += played;
   }
 }
 

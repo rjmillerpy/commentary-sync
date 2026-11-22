@@ -1,41 +1,57 @@
-/** The games a listener can hear commentary on: on now, or coming up. */
+/** The first screen: games on now or coming up, the ones with commentary
+ * first. No sign-in in front of it (UI rule 7.2). */
 
-import { useSession } from "@commentary-sync/client/react";
 import type { SportsEvent } from "@commentary-sync/client/schema";
 import { useCallback } from "react";
-import { FlatList, RefreshControl } from "react-native";
+import { SectionList, StyleSheet, Text } from "react-native";
 
 import { Notice } from "@/components/Notice";
-import { Row } from "@/components/Row";
+import { PlaceholderRows, Row } from "@/components/Row";
 import { Screen } from "@/components/Screen";
 import { useLoad } from "@/hooks/useLoad";
 import { api } from "@/lib/api";
-
-const OPEN = new Set<SportsEvent["status"]>(["live", "scheduled"]);
-const START_FORMAT: Intl.DateTimeFormatOptions = { weekday: "short", hour: "numeric", minute: "2-digit" };
+import { commentatorCount, type GameEntry, sectionGames, whenAndWhere } from "@/lib/games";
+import { COLOR, FONT, SPACE } from "@/theme";
 
 export function GamesScreen({ onPick }: { onPick(game: SportsEvent): void }) {
-  const { signOut } = useSession();
-  const load = useCallback(async () => (await api.upcomingEvents()).items.filter((game) => OPEN.has(game.status)), []);
-  const { data: games, error, isLoading, reload } = useLoad(load);
+  const load = useCallback(async () => {
+    const [games, live] = await Promise.all([api.upcomingEvents(), api.liveStreams()]);
+    return sectionGames(games.items, live.items);
+  }, []);
+  const { data, error, isLoading, reload } = useLoad(load);
+  const sections = data === null ? [] : [
+    { title: "Commentary live now", data: data.withCommentary },
+    { title: "Other games", data: data.others },
+  ].filter((section) => section.data.length > 0);
 
   return (
-    <Screen title="Games" action={{ label: "Sign out", onPress: () => void signOut() }}>
-      {error ? <Notice text={error} isError /> : null}
-      <FlatList
-        data={games ?? []}
-        keyExtractor={(game) => game.id}
-        renderItem={({ item }) => (
-          <Row title={item.title} detail={describe(item)} badge={item.status === "live" ? "LIVE" : undefined} onPress={() => onPick(item)} />
-        )}
-        ListEmptyComponent={isLoading ? undefined : <Notice text="No games on or coming up." />}
-        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={reload} />}
+    <Screen title="Games" subtitle="Pick the game on your TV" action={{ label: "Refresh", onPress: reload }} scrolls={false}>
+      {error ? <Notice text={`Couldn't load the games: ${error}`} isError action={{ label: "Try again", onPress: reload }} /> : null}
+      {isLoading && data === null ? <PlaceholderRows /> : null}
+      <SectionList
+        sections={sections}
+        keyExtractor={(entry) => entry.game.id}
+        renderSectionHeader={({ section }) => <Text style={styles.section}>{section.title}</Text>}
+        renderItem={({ item }) => <GameRow entry={item} onPick={onPick} />}
+        ListEmptyComponent={isLoading || error ? undefined : <Notice text="No games on or coming up in the next few days." />}
+        stickySectionHeadersEnabled={false}
       />
     </Screen>
   );
 }
 
-function describe(game: SportsEvent): string {
-  const when = new Date(game.starts_at).toLocaleString([], START_FORMAT);
-  return [game.league.toUpperCase(), when, ...game.networks].join(" · ");
+function GameRow({ entry, onPick }: { entry: GameEntry; onPick(game: SportsEvent): void }) {
+  const { game, commentators } = entry;
+  return (
+    <Row
+      title={game.title}
+      details={[commentatorCount(commentators), whenAndWhere(game)]}
+      isLive={game.status === "live"}
+      onPress={() => onPick(game)}
+    />
+  );
 }
+
+const styles = StyleSheet.create({
+  section: { color: COLOR.muted, fontSize: FONT.small, fontWeight: "700", paddingVertical: SPACE.sm },
+});

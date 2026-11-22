@@ -10,7 +10,13 @@ from redis.asyncio import Redis
 
 from app.auth.lockout import failure_key
 from app.auth.schema import TokenPair
-from app.auth.views import LOGIN_PER_HOUR, LOGIN_PER_MINUTE, REFRESH_PER_MINUTE, REGISTER_PER_HOUR
+from app.auth.views import (
+    GUEST_PER_HOUR,
+    LOGIN_PER_HOUR,
+    LOGIN_PER_MINUTE,
+    REFRESH_PER_MINUTE,
+    REGISTER_PER_HOUR,
+)
 from app.common.cache import get_cache
 from app.common.rate_limit import RATE_LIMITED_DETAIL
 from tests.conftest import DISPLAY_NAME, EMAIL, PASSWORD, Account, LogLines, bearer
@@ -293,9 +299,8 @@ def test_me_without_a_token_is_401(api: TestClient) -> None:
 
 def test_auth_routes_are_documented(api: TestClient) -> None:
     paths = api.get("/openapi.json").json()["paths"]
-    assert {"/auth/register", "/auth/login", "/auth/refresh", "/auth/logout", "/auth/me"} <= set(
-        paths
-    )
+    routes = {"/auth/register", "/auth/login", "/auth/refresh", "/auth/logout", "/auth/me"}
+    assert routes | {"/auth/guest"} <= set(paths)
     assert "429" in paths["/auth/login"]["post"]["responses"]
 
 
@@ -324,6 +329,22 @@ def test_one_client_cant_hammer_refresh(api: TestClient) -> None:
     for _ in range(REFRESH_PER_MINUTE.limit):
         assert refresh(api, "never-issued").status_code == 401
     assert refresh(api, "never-issued").status_code == 429
+
+
+def test_a_guest_token_needs_no_account_and_names_a_new_guest_each_time(api: TestClient) -> None:
+    first, second = api.post("/auth/guest"), api.post("/auth/guest")
+    assert first.status_code == 200
+    assert first.headers["Cache-Control"] == "no-store"  # it carries a token
+    body = first.json()
+    assert set(body) == {"access_token", "token_type", "expires_in"}  # no refresh token
+    assert body["expires_in"] == 12 * 60 * 60
+    assert body["access_token"] != second.json()["access_token"]
+
+
+def test_one_client_cant_mint_guests_in_bulk(api: TestClient) -> None:
+    for _ in range(GUEST_PER_HOUR.limit):
+        assert api.post("/auth/guest").status_code == 200
+    assert api.post("/auth/guest").status_code == 429
 
 
 def test_login_rate_limits_are_tighter_per_minute_than_per_hour() -> None:

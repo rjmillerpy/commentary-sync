@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react-native";
 
-import { TICK_MS, useDelayedPlayback } from "@/hooks/useDelayedPlayback";
+import { type PlaybackOptions, TICK_MS, useDelayedPlayback } from "@/hooks/useDelayedPlayback";
+import { SEEK_COOLDOWN_MS } from "@/lib/delay";
 import { latestPlayer, players } from "../_fakeVideo";
 
 const URL = "http://hls.test/abc/index.m3u8";
@@ -25,6 +26,7 @@ test("plays the playlist, and keeps playing with the screen off", async () => {
   const player = latestPlayer();
   expect(player.source).toBe(URL);
   expect([player.playing, player.staysActiveInBackground, player.showNowPlayingNotification]).toEqual([true, true, true]);
+  expect(player.preservesPitch).toBe(true); // speed corrections don't change voices
 });
 
 test("is loading until the player knows how far behind live it is", async () => {
@@ -55,14 +57,82 @@ test("pauses to build up a delay the recording can't reach yet, then plays", asy
   expect(result.current).toMatchObject({ phase: "playing", behind: 10 });
 });
 
-test("a new delay is applied on the next tick", async () => {
+test("a new delay is applied at once, by the difference: a fine-tune is heard as it's tapped", async () => {
   const { rerender } = await renderHook(({ delay }: { delay: number }) => useDelayedPlayback(URL, delay), {
     initialProps: { delay: 10 },
   });
   Object.assign(latestPlayer(), { currentTime: 60, currentOffsetFromLive: 10 });
   await rerender({ delay: 25 });
-  await tick();
   expect(latestPlayer().seeks).toEqual([-15]);
+  await rerender({ delay: 25.1 });
+  expect(latestPlayer().seeks.at(-1)).toBeCloseTo(-0.1);
+  await tick();
+  expect(latestPlayer().seeks).toHaveLength(2); // already there: nothing more to do
+});
+
+test("a little off: corrected by speed, not a seek, until back within ±0.25 s", async () => {
+  const { result } = await renderHook(() => useDelayedPlayback(URL, 10));
+  const player = latestPlayer();
+  Object.assign(player, { currentTime: 60, currentOffsetFromLive: 9 }); // 1 s too close to live
+  await tick();
+  expect(player.playbackRate).toBeCloseTo(0.95);
+  expect(result.current.phase).toBe("drifting");
+  for (let ticks = 0; ticks < 100 && result.current.phase === "drifting"; ticks += 1) {
+    player.advance(TICK_MS / 1_000);
+    await tick();
+  }
+  expect(player.seeks).toEqual([]);
+  expect(player.playbackRate).toBe(1);
+  expect(result.current.phase).toBe("playing");
+});
+
+test("far off: one seek, then at most one every 10 s; three that don't land is stuck", async () => {
+  const { result, rerender } = await renderHook(({ jumpAt }: { jumpAt: number }) => useDelayedPlayback(URL, 10, { jumpAt }), {
+    initialProps: { jumpAt: 0 },
+  });
+  const player = latestPlayer();
+  Object.assign(player, { currentTime: 60, currentOffsetFromLive: 30, ignoresSeeks: true }); // seeks don't take
+  await tick();
+  expect(player.seeks).toHaveLength(1);
+  await tick();
+  expect(player.seeks).toHaveLength(1); // cooling down
+  await advance(SEEK_COOLDOWN_MS * 3);
+  expect(player.seeks).toHaveLength(4); // one every 10 s
+  await advance(SEEK_COOLDOWN_MS);
+  expect(result.current.phase).toBe("stuck");
+  await advance(SEEK_COOLDOWN_MS * 3);
+  expect(player.seeks).toHaveLength(4); // stopped trying
+  await rerender({ jumpAt: Date.now() }); // the listener resyncs
+  await tick();
+  expect(player.seeks).toHaveLength(5);
+});
+
+test("paused by the listener: paused, uncorrected, and how far behind keeps growing", async () => {
+  const options = (isPausedByListener: boolean): PlaybackOptions => ({ isPausedByListener });
+  const { result, rerender } = await renderHook(({ paused }: { paused: boolean }) => useDelayedPlayback(URL, 10, options(paused)), {
+    initialProps: { paused: false },
+  });
+  const player = latestPlayer();
+  Object.assign(player, { currentTime: 60, currentOffsetFromLive: 10 });
+  await rerender({ paused: true });
+  expect(player.playing).toBe(false);
+  player.advance(42);
+  await tick();
+  expect(result.current).toMatchObject({ phase: "paused", behind: 52 });
+  expect(player.seeks).toEqual([]);
+  await rerender({ paused: false });
+  expect(player.playing).toBe(true);
+  await tick();
+  expect(player.seeks).toEqual([42]); // straight back to 10 s behind
+});
+
+test("the commentary's volume is the listener's", async () => {
+  const { rerender } = await renderHook(({ volume }: { volume: number }) => useDelayedPlayback(URL, 10, { volume }), {
+    initialProps: { volume: 0.4 },
+  });
+  expect(latestPlayer().volume).toBe(0.4);
+  await rerender({ volume: 0.7 });
+  expect(latestPlayer().volume).toBe(0.7);
 });
 
 test("a failed player reconnects by itself, waiting longer each time", async () => {

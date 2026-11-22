@@ -23,7 +23,7 @@ from app.streams.views import (
 )
 from app.sync.schema import Samples
 from app.sync.service import extract_features
-from tests.conftest import EMAIL, Account, bearer, register_account
+from tests.conftest import EMAIL, Account, bearer, guest_token, register_account
 from tests.streams.conftest import (
     START,
     STOP,
@@ -373,9 +373,54 @@ async def test_ending_the_stream_stops_the_recording_and_the_playlist(
     )
 
 
-async def test_the_playlist_needs_sign_in(hls_api: TestClient) -> None:
-    """Security: the URL is the only key to the recording, so it goes only to accounts."""
+async def test_the_playlist_needs_a_listener_token(hls_api: TestClient) -> None:
+    """Security: the URL is the only key to the recording, so it goes only to
+    listeners with a token (an account's or a guest's), rate limited per client."""
     assert hls_api.post(f"/streams/{uuid.uuid4()}/listener-playlist").status_code == 401
+
+
+async def test_a_guest_listens_and_syncs_and_is_counted_without_an_account(
+    hls_api: TestClient, account: Account, event: Event
+) -> None:
+    make_commentator(hls_api, account)
+    stream = go_live(hls_api, account, event)
+    commentator_connects(hls_api, stream, account)
+    guest = bearer(guest_token(hls_api))
+    stream_path = f"/streams/{stream['id']}"
+    assert hls_api.post(f"{stream_path}/listener-playlist", headers=guest).status_code == 200
+    assert hls_api.post(f"{stream_path}/listener-token", headers=guest).status_code == 200
+    assert hls_api.post(f"{stream_path}/listening", headers=guest).status_code == 204
+    another_guest = bearer(guest_token(hls_api))
+    assert hls_api.post(f"{stream_path}/listening", headers=another_guest).status_code == 204
+    assert hls_api.get(stream_path).json()["listeners"] == 2
+    features = np.zeros((300, 16), dtype="<f4").tobytes()
+    sync = hls_api.post(
+        f"{stream_path}/sync",
+        params={"captured_at": time.time()},
+        content=features,
+        headers={**guest, "Content-Type": "application/octet-stream"},
+    )
+    assert sync.status_code != 401  # a guest is let in; what the matcher says is another test
+
+
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("post", "/streams"),
+        ("post", "/streams/{id}/end"),
+        ("post", "/streams/{id}/publisher-token"),
+        ("post", "/streams/{id}/reference"),
+        ("get", "/auth/me"),
+    ],
+    ids=["go-live", "end", "publisher-token", "reference", "me"],
+)
+async def test_a_guest_token_opens_nothing_but_listening(
+    api: TestClient, method: str, path: str
+) -> None:
+    """Security: guests can listen; everything else still needs an account."""
+    guest = bearer(guest_token(api))
+    response = getattr(api, method)(path.format(id=uuid.uuid4()), headers=guest)
+    assert response.status_code == 401
 
 
 async def test_an_unknown_stream_has_no_playlist(hls_api: TestClient, account: Account) -> None:

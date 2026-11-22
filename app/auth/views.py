@@ -5,6 +5,7 @@ POST /auth/login     email and password for a token pair
 POST /auth/refresh   a refresh token for a new pair (the old one stops working)
 POST /auth/logout    end the session a refresh token belongs to
 GET  /auth/me        the signed-in account
+POST /auth/guest     a guest token: listening without an account
 """
 
 from datetime import UTC, datetime
@@ -25,7 +26,14 @@ from app.auth.errors import (
     LoginLockedError,
 )
 from app.auth.models import User
-from app.auth.schema import Credentials, RefreshRequest, Registration, TokenPair, UserResponse
+from app.auth.schema import (
+    Credentials,
+    GuestToken,
+    RefreshRequest,
+    Registration,
+    TokenPair,
+    UserResponse,
+)
 from app.common.cache import get_cache
 from app.common.config import Settings, get_settings
 from app.common.db import get_db
@@ -42,6 +50,9 @@ LOGIN_PER_MINUTE = RateLimit("auth-login-minute", limit=10, window_seconds=60)
 LOGIN_PER_HOUR = RateLimit("auth-login-hour", limit=100, window_seconds=60 * 60)
 REGISTER_PER_HOUR = RateLimit("auth-register-hour", limit=5, window_seconds=60 * 60)
 REFRESH_PER_MINUTE = RateLimit("auth-refresh-minute", limit=30, window_seconds=60)
+# A household shares one address: enough for its phones, each asking once a
+# token's lifetime, but not for minting guests in bulk.
+GUEST_PER_HOUR = RateLimit("auth-guest-hour", limit=30, window_seconds=60 * 60)
 
 
 @auth_router.post(
@@ -128,3 +139,15 @@ async def logout(request: RefreshRequest, db: Annotated[AsyncSession, Depends(ge
 @auth_router.get("/me", responses=documented_errors(HTTPStatus.UNAUTHORIZED))
 async def me(user: Annotated[User, Depends(current_user)]) -> UserResponse:
     return UserResponse.model_validate(user, from_attributes=True)
+
+
+@auth_router.post(
+    "/guest",
+    responses=documented_errors(HTTPStatus.TOO_MANY_REQUESTS),
+    dependencies=[Depends(rate_limited(GUEST_PER_HOUR))],
+)
+async def guest(
+    response: Response, settings: Annotated[Settings, Depends(get_settings)]
+) -> GuestToken:
+    response.headers[CACHE_CONTROL_HEADER] = NO_STORE  # it carries a token
+    return service.issue_guest_token(settings, now=datetime.now(UTC))

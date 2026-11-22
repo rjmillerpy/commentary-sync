@@ -1,18 +1,13 @@
 import { ANALYSIS_SAMPLE_RATE, extractFeatures } from "@commentary-sync/client/features";
-import { SessionProvider } from "@commentary-sync/client/react";
 import { resample } from "@commentary-sync/client/resample";
 import { SYNC_MATCHED, SYNC_NOT_FOUND } from "@commentary-sync/client/testing";
 import { act, renderHook } from "@testing-library/react-native";
-import type { ReactNode } from "react";
 
 import { useTvSync } from "@/hooks/useTvSync";
-import { Session } from "@/lib/session";
-import { REFRESH_TOKEN_KEY } from "@/lib/tokenStore";
 import { AUTO_LISTEN_SECONDS } from "@/lib/autoSync";
 import { NOT_FOUND_RETRIES, RECORDING_SECONDS, RETRY_MS } from "@/lib/tvSync";
 import { microphone, streams } from "../_fakeAudio";
-import { items } from "../_fakeSecureStore";
-import { listenerApi } from "../_render";
+import { listenerApi, withAccess } from "../_render";
 
 const SYNC = "/streams/s-1/sync";
 const SERVER_NOW = 1_792_400_000;
@@ -27,17 +22,13 @@ function tv(seconds: number, rate: number): Float32Array {
   });
 }
 
-function signedIn({ children }: { children: ReactNode }) {
-  return <SessionProvider createSession={() => new Session()}>{children}</SessionProvider>;
-}
-
 function api() {
   return listenerApi().on("GET", "/clock", { status: 200, body: { now: SERVER_NOW } });
 }
 
 /** Starts a sync (or an automatic check) and lets the listening run out. */
 async function syncNow(onPlan = jest.fn(), { auto = false, currentDelay = 10 } = {}) {
-  const hook = await renderHook(() => useTvSync("s-1", onPlan, currentDelay), { wrapper: signedIn });
+  const hook = await renderHook(() => useTvSync("s-1", onPlan, currentDelay), { wrapper: withAccess });
   await act(async () => {
     void hook.result.current.start({ auto });
     await jest.advanceTimersByTimeAsync((auto ? AUTO_LISTEN_SECONDS : RECORDING_SECONDS) * 1_000);
@@ -50,7 +41,6 @@ async function syncNow(onPlan = jest.fn(), { auto = false, currentDelay = 10 } =
 
 beforeEach(() => {
   jest.useFakeTimers();
-  items.set(REFRESH_TOKEN_KEY, "refresh-1");
   microphone.feed = tv(RECORDING_SECONDS, microphone.sampleRate);
 });
 afterEach(() => jest.useRealTimers());
@@ -104,7 +94,7 @@ test("the microphone is on only while listening, and recording is switched off a
 
 test("says it is listening while it listens", async () => {
   api();
-  const { result } = await renderHook(() => useTvSync("s-1", jest.fn(), 10), { wrapper: signedIn });
+  const { result } = await renderHook(() => useTvSync("s-1", jest.fn(), 10), { wrapper: withAccess });
   await act(async () => {
     void result.current.start();
     await jest.advanceTimersByTimeAsync(1_000);
@@ -137,7 +127,7 @@ test("a refused microphone is explained, and it never listens", async () => {
   api();
   microphone.granted = false;
   const { result } = await syncNow();
-  expect(result.current.state).toEqual({ kind: "failed", auto: false, detail: expect.stringMatching(/Allow Commentary Sync to use the microphone/) });
+  expect(result.current.state).toEqual({ kind: "failed", auto: false, reason: "microphone", detail: expect.stringMatching(/Allow Commentary Sync to use the microphone/) });
   expect(microphone.starts).toBe(0);
 });
 
@@ -145,7 +135,7 @@ test("a microphone that delivers nothing is a plain failure", async () => {
   api();
   microphone.feed = new Float32Array(0);
   const { result } = await syncNow();
-  expect(result.current.state).toEqual({ kind: "failed", auto: false, detail: "Couldn't sync; try again." });
+  expect(result.current.state).toEqual({ kind: "failed", auto: false, reason: "other", detail: "Couldn't sync; try again." });
   expect(microphone.modes.at(-1)).toEqual({ allowsRecording: false });
 });
 
@@ -155,12 +145,12 @@ test("the API's refusal is shown as it is", async () => {
   await act(async () => {
     await jest.advanceTimersByTimeAsync(0);
   });
-  expect(result.current.state).toEqual({ kind: "failed", auto: false, detail: "features must cover 3 to 20 s" });
+  expect(result.current.state).toEqual({ kind: "failed", auto: false, reason: "other", detail: "features must cover 3 to 20 s" });
 });
 
 test("buffers outside a sync go nowhere", async () => {
   api();
-  await renderHook(() => useTvSync("s-1", jest.fn(), 10), { wrapper: signedIn });
+  await renderHook(() => useTvSync("s-1", jest.fn(), 10), { wrapper: withAccess });
   await streams[0]!.start(); // delivers buffers with no sync running
   expect(microphone.starts).toBe(1);
 });
@@ -168,7 +158,7 @@ test("buffers outside a sync go nowhere", async () => {
 test("leaving during a sync changes nothing afterwards (rule 71)", async () => {
   api().on("POST", SYNC, { status: 200, body: SYNC_MATCHED });
   const onPlan = jest.fn();
-  const { result, unmount } = await renderHook(() => useTvSync("s-1", onPlan, 10), { wrapper: signedIn });
+  const { result, unmount } = await renderHook(() => useTvSync("s-1", onPlan, 10), { wrapper: withAccess });
   await act(async () => {
     void result.current.start();
   });
@@ -182,7 +172,7 @@ describe("automatic re-checks", () => {
   test("listen for less time, and leave an unchanged delay alone", async () => {
     const fake = api().on("POST", SYNC, { status: 200, body: { ...SYNC_MATCHED, delay_seconds: 20.2 } });
     const { result, onPlan } = await syncNow(jest.fn(), { auto: true, currentDelay: 20 });
-    expect(result.current.state).toMatchObject({ kind: "synced", auto: true, changed: false, delay: 20 });
+    expect(result.current.state).toMatchObject({ kind: "synced", auto: true, changed: false, delay: 20.2 });
     expect(onPlan).not.toHaveBeenCalled();
     const sent = fake.requests.find((request) => request.path.startsWith(SYNC))!;
     const frames = (sent.body as Float32Array).length / 16;
@@ -199,7 +189,7 @@ describe("automatic re-checks", () => {
   test("misses in a row are counted, and a match resets the count", async () => {
     api().on("POST", SYNC, { status: 200, body: SYNC_NOT_FOUND });
     const onPlan = jest.fn();
-    const { result } = await renderHook(() => useTvSync("s-1", onPlan, 20), { wrapper: signedIn });
+    const { result } = await renderHook(() => useTvSync("s-1", onPlan, 20), { wrapper: withAccess });
     const check = () =>
       act(async () => {
         void result.current.start({ auto: true });

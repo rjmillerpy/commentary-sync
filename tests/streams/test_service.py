@@ -227,7 +227,7 @@ async def test_a_listener_gets_a_subscribe_only_token(
     owner = await add_commentator(db)
     listener = await add_user(db, "listener@example.com")
     stream = await service.go_live(db, owner, GoLive(event_id=event.id), now=NOW)
-    access = await service.listener_access(db, listener, stream.id, settings, now=NOW)
+    access = await service.listener_access(db, listener.id, stream.id, settings, now=NOW)
     claims = room_claims(access)
     assert claims["sub"] == f"listener-{listener.id}"
     assert claims["video"]["room"] == f"stream-{stream.id}"  # type: ignore[index]
@@ -251,9 +251,11 @@ async def test_an_ended_stream_issues_no_tokens(
     user = await add_commentator(db)
     stream = await service.go_live(db, user, GoLive(event_id=event.id), now=NOW)
     await service.end_stream(db, user, stream.id, now=LATER)
-    access = service.publisher_access if role == "publisher" else service.listener_access
     with pytest.raises(StreamEndedError):
-        await access(db, user, stream.id, settings, now=LATER)
+        if role == "publisher":
+            await service.publisher_access(db, user, stream.id, settings, now=LATER)
+        else:
+            await service.listener_access(db, user.id, stream.id, settings, now=LATER)
 
 
 async def test_a_listener_token_for_an_unknown_stream_is_an_error(
@@ -261,7 +263,7 @@ async def test_a_listener_token_for_an_unknown_stream_is_an_error(
 ) -> None:
     user = await add_user(db)
     with pytest.raises(StreamNotFoundError):
-        await service.listener_access(db, user, uuid.uuid4(), settings, now=NOW)
+        await service.listener_access(db, user.id, uuid.uuid4(), settings, now=NOW)
 
 
 async def test_issuing_a_token_logs_the_stream_and_role_but_not_the_token(

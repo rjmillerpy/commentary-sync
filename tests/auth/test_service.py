@@ -17,7 +17,7 @@ from app.auth.errors import (
 from app.auth.models import User
 from app.auth.schema import Credentials, Registration, TokenPair
 from app.auth.sessions import end_all_sessions
-from app.auth.tokens import AccessClaims, create_access_token
+from app.auth.tokens import AccessClaims, create_access_token, read_guest_token
 from app.common.config import Settings
 from tests.conftest import DISPLAY_NAME, EMAIL, PASSWORD
 
@@ -159,3 +159,14 @@ async def test_an_expired_token_is_rejected(db: AsyncSession, migrated_settings:
     )
     with pytest.raises(InvalidTokenError):
         await service.authenticate(db, expired, migrated_settings)
+
+
+def test_a_guest_token_names_a_fresh_guest_for_the_configured_lifetime(settings: Settings) -> None:
+    now = datetime.now(UTC)
+    first = service.issue_guest_token(settings, now=now)
+    second = service.issue_guest_token(settings, now=now)
+    secret = settings.auth_secret.get_secret_value()
+    assert first.expires_in == settings.guest_token_seconds
+    assert read_guest_token(first.access_token, secret=secret) != read_guest_token(
+        second.access_token, secret=secret
+    )

@@ -4,9 +4,9 @@
  * neither is the listener's to fix. */
 
 import { ApiError, HTTP_CONFLICT, NETWORK_ERROR_STATUS, NO_HLS_YET_DETAIL } from "@commentary-sync/client/api";
-import { useSession } from "@commentary-sync/client/react";
 import { useEffect, useState } from "react";
 
+import { useAuthorized } from "@/hooks/useAccess";
 import { api } from "@/lib/api";
 
 export const PLAYLIST_RETRY_MS = 3_000;
@@ -17,7 +17,7 @@ export type PlaylistState =
   | { kind: "failed"; detail: string };
 
 export function usePlaylist(streamId: string): PlaylistState {
-  const { authorized } = useSession();
+  const authorized = useAuthorized();
   const [state, setState] = useState<PlaylistState>({ kind: "waiting" });
 
   useEffect(() => {

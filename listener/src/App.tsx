@@ -1,41 +1,24 @@
-/** The listener app: sign in, pick a game, pick a commentator, listen. */
+/** The listener app: pick a game, pick a commentator, listen. No account
+ * needed (UI rule 7.2): listening runs on a guest token (hooks/useAccess.tsx). */
 
-import { SessionProvider, useSession } from "@commentary-sync/client/react";
 import { StatusBar } from "expo-status-bar";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { AccessProvider } from "@/hooks/useAccess";
 import { useRoutes } from "@/hooks/useRoutes";
-import { Session } from "@/lib/session";
 import { CommentatorsScreen } from "@/screens/CommentatorsScreen";
 import { GamesScreen } from "@/screens/GamesScreen";
 import { ListenScreen } from "@/screens/ListenScreen";
-import { SignInScreen } from "@/screens/SignInScreen";
-import { COLOR } from "@/theme";
-
-const createSession = () => new Session();
 
 export default function App() {
   return (
     <SafeAreaProvider>
       <StatusBar style="light" />
-      <SessionProvider createSession={createSession}>
-        <Main />
-      </SessionProvider>
+      <AccessProvider>
+        <Navigator />
+      </AccessProvider>
     </SafeAreaProvider>
   );
-}
-
-function Main() {
-  const { status } = useSession();
-  if (status === "restoring") {
-    return (
-      <View style={styles.restoring}>
-        <ActivityIndicator accessibilityLabel="Signing in" color={COLOR.accent} />
-      </View>
-    );
-  }
-  return status === "signed-in" ? <Navigator /> : <SignInScreen />;
 }
 
 function Navigator() {
@@ -51,7 +34,3 @@ function Navigator() {
       return <ListenScreen game={current.game} stream={current.stream} onBack={back} />;
   }
 }
-
-const styles = StyleSheet.create({
-  restoring: { flex: 1, justifyContent: "center", backgroundColor: COLOR.background },
-});

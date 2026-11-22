@@ -1,5 +1,5 @@
-/** The listener's delay: how far behind real time they hear the commentary.
- * Nudged in big and small steps until the commentary matches their TV. */
+/** Setting the delay by hand, with sync off: how far behind real time the
+ * commentary plays, nudged in big and small steps until it matches the TV. */
 
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -23,7 +23,7 @@ export function DelayControl({ delay, onChange }: DelayControlProps) {
           <Pressable
             key={step}
             accessibilityRole="button"
-            accessibilityLabel={`${step > 0 ? "More" : "Less"} delay, ${Math.abs(step)} seconds`}
+            accessibilityLabel={`${step > 0 ? "More" : "Less"} delay, ${Math.abs(step)} ${Math.abs(step) === 1 ? "second" : "seconds"}`}
             onPress={() => onChange(clampDelay(delay + step))}
             style={styles.step}
           >
@@ -31,13 +31,13 @@ export function DelayControl({ delay, onChange }: DelayControlProps) {
           </Pressable>
         ))}
       </View>
-      <Text style={styles.hint}>Raise the delay until the commentary matches your TV.</Text>
+      <Text style={styles.hint}>Commentary ahead of your TV? More delay. Behind it? Less.</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  control: { alignItems: "center", gap: SPACE.sm, paddingVertical: SPACE.lg },
+  control: { alignItems: "center", gap: SPACE.sm, paddingVertical: SPACE.md },
   label: { color: COLOR.muted, fontSize: FONT.small },
   value: { color: COLOR.text, fontSize: FONT.big, fontWeight: "700" },
   steps: { flexDirection: "row", gap: SPACE.sm },
@@ -48,7 +48,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderRadius: RADIUS,
-    backgroundColor: COLOR.surface,
+    backgroundColor: COLOR.raised,
   },
   stepLabel: { color: COLOR.text, fontSize: FONT.body, fontWeight: "600" },
   hint: { color: COLOR.muted, fontSize: FONT.small, textAlign: "center" },

@@ -2,19 +2,7 @@ import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
 import { ApiError, createApi } from "../src/api.ts";
-import {
-  BASE_URL,
-  COMMENTATOR,
-  EVENTS,
-  FakeApi,
-  PAIR,
-  PLAYLIST,
-  ROOM,
-  STREAM,
-  STREAMS,
-  SYNC_MATCHED,
-  SYNC_NOT_FOUND,
-} from "../src/testing.ts";
+import { BASE_URL, COMMENTATOR, EVENTS, FakeApi, GUEST, PAIR, PLAYLIST, ROOM, STREAM, STREAMS, SYNC_MATCHED, SYNC_NOT_FOUND } from "../src/testing.ts";
 
 const TIMEOUT_MS = 1_000;
 const SIGNED_IN = "Bearer tok";
@@ -42,6 +30,8 @@ test("every endpoint calls its path, with the access token where it needs one", 
     .on("POST", "/commentators", { status: 201, body: COMMENTATOR })
     .on("GET", "/events?limit=100", { status: 200, body: EVENTS })
     .on("GET", "/streams?event_id=e-live&limit=100", { status: 200, body: STREAMS })
+    .on("GET", "/streams?limit=100", { status: 200, body: STREAMS })
+    .on("POST", "/auth/guest", { status: 200, body: GUEST })
     .on("POST", "/streams", { status: 201, body: STREAM })
     .on("POST", "/streams/s-1/publisher-token", { status: 200, body: ROOM })
     .on("POST", "/streams/s-1/listener-playlist", { status: 200, body: PLAYLIST })
@@ -53,6 +43,8 @@ test("every endpoint calls its path, with the access token where it needs one", 
   await api.becomeCommentator("tok", "fan_cast");
   await api.upcomingEvents();
   assert.equal((await api.liveStreamsOn("e-live")).items[0]?.commentator.handle, "fan_cast");
+  assert.equal((await api.liveStreams()).items.length, 1);
+  assert.equal((await api.guestToken()).access_token, "guest-1");
   await api.goLive("tok", "e-live");
   await api.publisherToken("tok", "s-1");
   assert.deepEqual(await api.listenerPlaylist("tok", "s-1"), PLAYLIST);
@@ -67,13 +59,16 @@ test("every endpoint calls its path, with the access token where it needs one", 
       ["POST /commentators", SIGNED_IN],
       ["GET /events?limit=100", null],
       ["GET /streams?event_id=e-live&limit=100", null],
+      ["GET /streams?limit=100", null],
+      ["POST /auth/guest", null],
       ["POST /streams", SIGNED_IN],
       ["POST /streams/s-1/publisher-token", SIGNED_IN],
       ["POST /streams/s-1/listener-playlist", SIGNED_IN],
       ["POST /streams/s-1/end", SIGNED_IN],
     ],
   );
-  assert.deepEqual(fake.requests[7]?.body, { event_id: "e-live" });
+  const goLive = fake.requests.find((request) => request.method === "POST" && request.path === "/streams");
+  assert.deepEqual(goLive?.body, { event_id: "e-live" });
 });
 
 test("security: a stream ID can't change the path it is put in", async () => {

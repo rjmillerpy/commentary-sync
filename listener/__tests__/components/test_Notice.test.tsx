@@ -1,14 +1,17 @@
-import { render, screen } from "@testing-library/react-native";
+import { fireEvent, render, screen } from "@testing-library/react-native";
 
 import { Notice } from "@/components/Notice";
 
-test("a notice is plain text", async () => {
-  await render(<Notice text="Nothing yet." />);
-  expect(screen.getByText("Nothing yet.")).toBeOnTheScreen();
+test("a plain notice is text", async () => {
+  await render(<Notice text="Waiting…" />);
+  expect(screen.getByText("Waiting…")).toBeOnTheScreen();
   expect(screen.queryByRole("alert")).toBeNull();
 });
 
-test("an error is announced as an alert", async () => {
-  await render(<Notice text="Offline." isError />);
-  expect(screen.getByRole("alert")).toHaveTextContent("Offline.");
+test("a problem is an alert with one way out", async () => {
+  const onPress = jest.fn();
+  await render(<Notice text="Couldn't load the games" isError action={{ label: "Try again", onPress }} />);
+  expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load the games");
+  await fireEvent.press(screen.getByRole("button", { name: "Try again" }));
+  expect(onPress).toHaveBeenCalled();
 });

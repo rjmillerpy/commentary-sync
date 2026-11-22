@@ -67,6 +67,13 @@ def bearer(access_token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {access_token}"}
 
 
+def guest_token(api: TestClient) -> str:
+    """A guest's token (listening without an account), from the API."""
+    response = api.post("/auth/guest")
+    assert response.status_code == 200, response.text
+    return str(response.json()["access_token"])
+
+
 def register_account(
     api: TestClient, email: str = EMAIL, display_name: str = DISPLAY_NAME
 ) -> Account:

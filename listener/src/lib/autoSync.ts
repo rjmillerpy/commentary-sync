@@ -10,7 +10,7 @@
  * changes the delay when the TV really moved.
  */
 
-import { DELAY_TOLERANCE_SECONDS } from "@/lib/delay";
+import { SYNC_TOLERANCE_SECONDS } from "@/lib/delay";
 import type { DelayPlan } from "@/lib/tvSync";
 
 const MINUTE_MS = 60_000;
@@ -30,7 +30,7 @@ export type RecheckOutcome = { kind: "keep" } | { kind: "adjust"; plan: DelayPla
 
 /** What a re-check means for the delay now in use. */
 export function judgeRecheck(plan: DelayPlan, currentDelay: number): RecheckOutcome {
-  const hasMoved = plan.pauseTv > 0 || Math.abs(plan.delay - currentDelay) > DELAY_TOLERANCE_SECONDS;
+  const hasMoved = plan.pauseTv > 0 || Math.abs(plan.delay - currentDelay) > SYNC_TOLERANCE_SECONDS;
   return hasMoved ? { kind: "adjust", plan } : { kind: "keep" };
 }
 

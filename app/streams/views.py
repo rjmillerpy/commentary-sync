@@ -26,7 +26,7 @@ from redis.asyncio import Redis
 from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.dependencies import current_user
+from app.auth.dependencies import Listener, current_listener, current_user
 from app.auth.models import User
 from app.commentators.errors import NotACommentatorError
 from app.commentators.models import MAX_HANDLE_LENGTH
@@ -102,6 +102,8 @@ SYNC_ERRORS = documented_errors(
 
 Database = Annotated[AsyncSession, Depends(get_db)]
 SignedIn = Annotated[User, Depends(current_user)]
+# The listening routes: an account or a guest.
+Listening = Annotated[Listener, Depends(current_listener)]
 CurrentSettings = Annotated[Settings, Depends(get_settings)]
 CurrentRecorder = Annotated[Recorder | None, Depends(get_recorder)]
 Cache = Annotated[Redis, Depends(get_cache)]
@@ -184,13 +186,13 @@ async def publisher_token(
 )
 async def listener_token(
     stream_id: uuid.UUID,
-    user: SignedIn,
+    listener: Listening,
     db: Database,
     settings: CurrentSettings,
     response: Response,
 ) -> RoomAccess:
     access = await _on_live_stream(
-        service.listener_access(db, user, stream_id, settings, now=datetime.now(UTC))
+        service.listener_access(db, listener.id, stream_id, settings, now=datetime.now(UTC))
     )
     response.headers[CACHE_CONTROL_HEADER] = NO_STORE  # it carries a token
     return access
@@ -199,8 +201,8 @@ async def listener_token(
 @streams_router.post(
     "/{stream_id}/listener-playlist",
     responses=ROOM_TOKEN_ERRORS,
-    # Signed in like a token, for the same reason: the URL is the only key.
-    dependencies=[Depends(current_user), Depends(rate_limited(ROOM_TOKENS_PER_MINUTE))],
+    # A listener's like a token, for the same reason: the URL is the only key.
+    dependencies=[Depends(current_listener), Depends(rate_limited(ROOM_TOKENS_PER_MINUTE))],
 )
 async def listener_playlist(
     stream_id: uuid.UUID, db: Database, settings: CurrentSettings, response: Response
@@ -242,7 +244,7 @@ async def add_reference(
     "/{stream_id}/sync",
     responses=SYNC_ERRORS,
     openapi_extra=AUDIO_BODY,
-    dependencies=[Depends(current_user), Depends(rate_limited(SYNCS_PER_MINUTE))],
+    dependencies=[Depends(current_listener), Depends(rate_limited(SYNCS_PER_MINUTE))],
 )
 async def sync_to_tv(
     stream_id: uuid.UUID, captured_at: CapturedAt, request: Request, db: Database, cache: Cache
@@ -269,14 +271,14 @@ async def sync_to_tv(
     dependencies=[Depends(rate_limited(CHECK_INS_PER_MINUTE))],
 )
 async def check_in(
-    stream_id: uuid.UUID, user: SignedIn, db: Database, cache: Cache, settings: CurrentSettings
+    stream_id: uuid.UUID, listener: Listening, db: Database, cache: Cache, settings: CurrentSettings
 ) -> None:
     stream = await _on_live_stream(service.live_stream(db, stream_id))
     try:
         await audience.check_in(
             cache,
             stream.id,
-            user.id,
+            listener.id,
             now=datetime.now(UTC).timestamp(),
             window_seconds=settings.listener_window_seconds,
         )

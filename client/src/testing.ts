@@ -76,6 +76,8 @@ function respond({ status, body }: Reply): Response {
 
 export const PAIR = { access_token: "access-1", refresh_token: "refresh-1", token_type: "bearer", expires_in: 900 };
 export const PAIR_2 = { access_token: "access-2", refresh_token: "refresh-2", token_type: "bearer", expires_in: 900 };
+export const GUEST = { access_token: "guest-1", token_type: "bearer", expires_in: 43_200 };
+export const GUEST_2 = { access_token: "guest-2", token_type: "bearer", expires_in: 43_200 };
 export const COMMENTATOR = { id: "c-1", handle: "fan_cast", display_name: "Fan", bio: "", created_at: "2026-10-17T12:00:00Z" };
 export const LIVE_GAME = {
   id: "e-live",

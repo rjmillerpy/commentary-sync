@@ -65,6 +65,8 @@ class Settings(BaseSettings):
     # session lookup; refresh tokens are long-lived and revocable.
     access_token_seconds: int = Field(default=15 * 60, ge=60, le=SECONDS_PER_DAY)
     refresh_token_days: int = Field(default=30, ge=1, le=MAX_REFRESH_TOKEN_DAYS)
+    # Guests (listening without an account) ask for a new token when one runs out.
+    guest_token_seconds: int = Field(default=12 * 60 * 60, ge=60, le=SECONDS_PER_DAY)
     # After this many wrong passwords for one account, logins to it are refused
     # until `login_lockout_seconds` after the first of them.
     login_max_failures: int = Field(default=5, ge=1, le=MAX_LOGIN_FAILURES)

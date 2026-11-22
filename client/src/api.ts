@@ -13,6 +13,8 @@ import {
   ErrorBodySchema,
   type EventPage,
   EventPageSchema,
+  type GuestToken,
+  GuestTokenSchema,
   type PlaylistAccess,
   PlaylistAccessSchema,
   type RoomAccess,
@@ -106,6 +108,9 @@ export function createApi({ baseUrl, timeoutMs }: ApiConfig) {
     refresh: (refreshToken: string): Promise<TokenPair> =>
       call({ method: "POST", path: "/auth/refresh", schema: TokenPairSchema, body: { refresh_token: refreshToken } }),
 
+    /** A token for listening without an account. */
+    guestToken: (): Promise<GuestToken> => call({ method: "POST", path: "/auth/guest", schema: GuestTokenSchema }),
+
     logout: (refreshToken: string): Promise<null> =>
       call({ method: "POST", path: "/auth/logout", schema: Nothing, body: { refresh_token: refreshToken } }),
 
@@ -118,6 +123,10 @@ export function createApi({ baseUrl, timeoutMs }: ApiConfig) {
     /** Games from four hours ago on (the API's default), soonest first. */
     upcomingEvents: (): Promise<EventPage> =>
       call({ method: "GET", path: `/events?limit=${EVENTS_PAGE_SIZE}`, schema: EventPageSchema }),
+
+    /** Everyone live now, on any game: for counting commentators per game. */
+    liveStreams: (): Promise<StreamPage> =>
+      call({ method: "GET", path: `/streams?limit=${STREAMS_PAGE_SIZE}`, schema: StreamPageSchema }),
 
     /** Who is live on one game, longest-running first. */
     liveStreamsOn: (eventId: string): Promise<StreamPage> => {

@@ -5,6 +5,11 @@
  * - `isSuspended`: paused (the phone is listening to the TV for a sync).
  * - `isMuted`: playing but silent (an automatic re-check is listening), so
  *   the commentary's place in time doesn't move.
+ * - `isPausedByListener`: the listener paused it. Nothing corrects it while
+ *   paused, and `behind` keeps growing; un-pausing jumps straight back.
+ * - `jumpAt`: a newer time clears the seek cool-down, so the next tick may
+ *   seek at once (after a sync, a resync or un-pausing: things the listener
+ *   asked for, where waiting would look broken).
  * - A player that fails (the connection dropped, the server blinked) is
  *   reloaded by itself, with growing waits, and at once when the phone's
  *   connection comes back (`reconnectedAt`). The delay control then puts the
@@ -17,11 +22,11 @@ import { useVideoPlayer, type VideoPlayer } from "expo-video";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { backoffMs } from "@/lib/autoSync";
-import { correction } from "@/lib/delay";
+import { correction, type Correction, nextHistory, NO_SEEKS, type SeekHistory } from "@/lib/delay";
 
 export const TICK_MS = 500;
 
-export type PlaybackPhase = "loading" | "playing" | "holding" | "reconnecting";
+export type PlaybackPhase = "loading" | "playing" | "drifting" | "holding" | "stuck" | "reconnecting" | "paused";
 
 export interface Playback {
   phase: PlaybackPhase;
@@ -34,17 +39,24 @@ export interface Playback {
 export interface PlaybackOptions {
   isSuspended?: boolean;
   isMuted?: boolean;
+  isPausedByListener?: boolean;
+  /** 0 to 1. */
+  volume?: number;
+  jumpAt?: number;
   reconnectedAt?: number | null;
 }
 
-export function useDelayedPlayback(
-  url: string | null,
-  delay: number,
-  { isSuspended = false, isMuted = false, reconnectedAt = null }: PlaybackOptions = {},
-): Playback {
+interface TickState {
+  isHolding: boolean;
+  history: SeekHistory;
+}
+
+export function useDelayedPlayback(url: string | null, delay: number, options: PlaybackOptions = {}): Playback {
+  const { isSuspended = false, isMuted = false, isPausedByListener = false, volume = 1, jumpAt = 0, reconnectedAt = null } = options;
   const player = useVideoPlayer(url, (created) => {
     created.staysActiveInBackground = true;
     created.showNowPlayingNotification = true;
+    created.preservesPitch = true; // a 5% speed change shouldn't change voices
     created.play();
   });
   // The latest delay, read by the running tick without restarting it.
@@ -52,33 +64,64 @@ export function useDelayedPlayback(
   useEffect(() => {
     delayRef.current = delay;
   }, [delay]);
+  const state = useRef<TickState>({ isHolding: false, history: NO_SEEKS });
+  useEffect(() => {
+    state.current.history = NO_SEEKS;
+  }, [jumpAt]);
   const [playback, setPlayback] = useState<Playback>({ phase: "loading", behind: null, recoveredAt: null });
   const recovery = useRecovery(player, url, reconnectedAt);
+  const isStopped = isSuspended || isPausedByListener;
+  useDelayChange(player, delay, url !== null && !isStopped);
 
   useEffect(() => {
-    if (url === null || isSuspended) return;
-    const holding = { current: false };
-    player.play(); // from a suspension; a no-op otherwise
+    if (url === null || isStopped) return;
+    player.play(); // from a pause or suspension; a no-op otherwise
     const timer = setInterval(() => {
       if (player.status === "error") {
         recovery.current.failed();
         setPlayback((previous) => ({ ...previous, phase: "reconnecting", behind: null }));
         return;
       }
-      const next = tick(player, delayRef.current, holding);
+      const next = tick(player, delayRef.current, state.current);
       recovery.current.healthy();
       setPlayback((previous) => afterTick(previous, next));
     }, TICK_MS);
     return () => clearInterval(timer);
-  }, [player, url, isSuspended, recovery]);
+  }, [player, url, isStopped, recovery]);
 
-  useEffect(() => {
-    if (isSuspended) player.pause();
-  }, [player, isSuspended]);
-
-  useEffect(() => mute(player, isMuted), [player, isMuted]);
-
+  usePause(player, isSuspended, isPausedByListener, setPlayback);
+  useEffect(() => sound(player, isMuted, volume), [player, isMuted, volume]);
   return playback;
+}
+
+/** A changed delay (a sync, a fine-tune) is applied at once, by seeking the
+ * difference: the listener hears a fine-tune as they tap it (UI rule 1.4). */
+function useDelayChange(player: VideoPlayer, delay: number, isRunning: boolean): void {
+  const previous = useRef(delay);
+  useEffect(() => {
+    const change = delay - previous.current;
+    previous.current = delay;
+    if (change === 0 || !isRunning || player.currentOffsetFromLive === null) return;
+    player.seekBy(-change);
+  }, [player, delay, isRunning]);
+}
+
+/** Paused by the listener: say so, and keep `behind` growing as live moves on. */
+function usePause(
+  player: VideoPlayer,
+  isSuspended: boolean,
+  isPausedByListener: boolean,
+  setPlayback: (update: (previous: Playback) => Playback) => void,
+): void {
+  useEffect(() => {
+    if (!isSuspended && !isPausedByListener) return;
+    stop(player);
+    if (!isPausedByListener) return;
+    const read = () => setPlayback((previous) => ({ ...previous, phase: "paused", behind: player.currentOffsetFromLive }));
+    read();
+    const timer = setInterval(read, TICK_MS);
+    return () => clearInterval(timer);
+  }, [player, isSuspended, isPausedByListener, setPlayback]);
 }
 
 /** Reloads a failed player: after 1, 2, 4 ... 30 s, or at once on reconnect. */
@@ -124,8 +167,14 @@ function useRecovery(player: VideoPlayer, url: string | null, reconnectedAt: num
   return handlers;
 }
 
-function mute(player: VideoPlayer, isMuted: boolean): void {
+function stop(player: VideoPlayer): void {
+  player.pause();
+  player.playbackRate = 1;
+}
+
+function sound(player: VideoPlayer, isMuted: boolean, volume: number): void {
   player.muted = isMuted;
+  player.volume = volume;
 }
 
 /** A reloaded player loads again before it plays: until it plays, it is
@@ -136,18 +185,31 @@ function afterTick(previous: Playback, next: Omit<Playback, "recoveredAt">): Pla
   return { ...next, recoveredAt: Date.now() };
 }
 
-function tick(player: VideoPlayer, delay: number, holding: { current: boolean }): Omit<Playback, "recoveredAt"> {
-  const reading = { offset: player.currentOffsetFromLive, position: player.currentTime, isHolding: holding.current };
-  const step = correction(reading, delay);
+function tick(player: VideoPlayer, delay: number, state: TickState): Omit<Playback, "recoveredAt"> {
+  const now = Date.now();
+  const reading = { offset: player.currentOffsetFromLive, position: player.currentTime, isHolding: state.isHolding };
+  const step = correction(reading, delay, state.history, now);
+  apply(player, step, state);
+  state.history = nextHistory(state.history, step, now);
+  if (reading.offset === null) return { phase: "loading", behind: null };
+  return { phase: phaseOf(step, state.isHolding), behind: reading.offset };
+}
+
+function apply(player: VideoPlayer, step: Correction, state: TickState): void {
+  player.playbackRate = step.kind === "rate" ? step.rate : 1;
   if (step.kind === "seek") player.seekBy(step.by);
   if (step.kind === "hold") {
     player.pause();
-    holding.current = true;
+    state.isHolding = true;
   }
   if (step.kind === "resume") {
     player.play();
-    holding.current = false;
+    state.isHolding = false;
   }
-  if (reading.offset === null) return { phase: "loading", behind: null };
-  return { phase: holding.current ? "holding" : "playing", behind: reading.offset };
+}
+
+function phaseOf(step: Correction, isHolding: boolean): PlaybackPhase {
+  if (isHolding) return "holding";
+  if (step.kind === "stuck") return "stuck";
+  return step.kind === "none" || step.kind === "resume" ? "playing" : "drifting";
 }

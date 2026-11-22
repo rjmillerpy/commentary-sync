@@ -17,6 +17,8 @@ export const LIVE_FLOOR_SECONDS = 4;
  * catches up: a "not found" is retried a few times before giving up. */
 export const NOT_FOUND_RETRIES = 3;
 export const RETRY_MS = 5_000;
+/** Float error in a division that should land on a whole step. */
+const ROUNDING_SLACK = 1e-9;
 
 export interface DelayPlan {
   /** The delay to play the commentary at. */
@@ -27,7 +29,8 @@ export interface DelayPlan {
 
 export function planDelay(tvBehindSeconds: number): DelayPlan {
   if (tvBehindSeconds >= LIVE_FLOOR_SECONDS) return { delay: clampDelay(tvBehindSeconds), pauseTv: 0 };
-  // Rounded up, so the TV ends up behind the floor, never short of it.
-  const pause = Math.ceil((LIVE_FLOOR_SECONDS - tvBehindSeconds) / DELAY_STEP_SECONDS) * DELAY_STEP_SECONDS;
-  return { delay: LIVE_FLOOR_SECONDS, pauseTv: pause };
+  // Rounded up, so the TV ends up behind the floor, never short of it; then
+  // onto the grid, since a tenth isn't exact in binary.
+  const steps = Math.ceil((LIVE_FLOOR_SECONDS - tvBehindSeconds) / DELAY_STEP_SECONDS - ROUNDING_SLACK);
+  return { delay: LIVE_FLOOR_SECONDS, pauseTv: clampDelay(steps * DELAY_STEP_SECONDS) };
 }

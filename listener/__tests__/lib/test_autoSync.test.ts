@@ -2,7 +2,8 @@ import { backoffMs, judgeRecheck } from "@/lib/autoSync";
 
 test.each([
   ["the same delay: keep", { delay: 20, pauseTv: 0 }, 20, "keep"],
-  ["within half a second: keep", { delay: 20.5, pauseTv: 0 }, 20, "keep"],
+  ["within a quarter second: keep", { delay: 20.2, pauseTv: 0 }, 20, "keep"],
+  ["half a second off: adjust (the phone test's error)", { delay: 20.5, pauseTv: 0 }, 20, "adjust"],
   ["the TV fell further behind: adjust", { delay: 26, pauseTv: 0 }, 20, "adjust"],
   ["the TV caught up a little: adjust", { delay: 17, pauseTv: 0 }, 20, "adjust"],
   ["the TV is now ahead: adjust, the listener must pause it", { delay: 4, pauseTv: 3 }, 4, "adjust"],
