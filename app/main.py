@@ -27,6 +27,7 @@ from app.common.schema import ErrorResponse, ValidationErrorResponse, Validation
 from app.common.security_headers import SecurityHeadersMiddleware
 from app.events.views import events_router
 from app.health.views import health_router
+from app.streams.health_views import sync_health_router
 from app.streams.recorder import create_recorder
 from app.streams.views import streams_router
 from app.streams.webhooks import webhooks_router
@@ -60,6 +61,7 @@ ROUTERS: tuple[tuple[APIRouter, str, bool], ...] = (
     (events_router, "/events", True),
     (commentators_router, "/commentators", True),
     (streams_router, "/streams", True),
+    (sync_health_router, "/streams", True),
     (webhooks_router, "/webhooks", False),
 )
 

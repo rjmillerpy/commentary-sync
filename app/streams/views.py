@@ -39,7 +39,7 @@ from app.common.rate_limit import RateLimit, rate_limited
 from app.common.request_body import read_limited_body
 from app.common.schema import documented_errors
 from app.events.errors import EventNotFoundError
-from app.streams import audience, reference, service, tv_sync
+from app.streams import audience, reference, service, sync_health, tv_sync
 from app.streams.errors import (
     AlreadyLiveError,
     CaptureTimeError,
@@ -244,18 +244,25 @@ async def add_reference(
     "/{stream_id}/sync",
     responses=SYNC_ERRORS,
     openapi_extra=AUDIO_BODY,
-    dependencies=[Depends(current_listener), Depends(rate_limited(SYNCS_PER_MINUTE))],
+    dependencies=[Depends(rate_limited(SYNCS_PER_MINUTE))],
 )
 async def sync_to_tv(
-    stream_id: uuid.UUID, captured_at: CapturedAt, request: Request, db: Database, cache: Cache
+    stream_id: uuid.UUID,
+    captured_at: CapturedAt,
+    request: Request,
+    listener: Listening,
+    db: Database,
+    cache: Cache,
 ) -> SyncResult:
     """The matcher's features of 3 to 20 s of the listener's TV (client/src/features.ts):
     frames of 16 little-endian float32 values, 100 a second. Never audio."""
     features = await read_limited_body(request, tv_sync.MAX_FEATURE_BYTES)
-    action = tv_sync.measure_delay(
-        db, cache, stream_id, features, captured_at, now=datetime.now(UTC)
-    )
-    return await _with_sync_errors(_on_live_stream(action))
+    now = datetime.now(UTC)
+    action = tv_sync.measure_delay(db, cache, stream_id, features, captured_at, now=now)
+    result = await _with_sync_errors(_on_live_stream(action))
+    # For the commentator's studio: how their listeners are syncing (health_views.py).
+    await sync_health.record(cache, stream_id, listener.id, result, now=now.timestamp())
+    return result
 
 
 @streams_router.post(

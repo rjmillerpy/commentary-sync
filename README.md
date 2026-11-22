@@ -450,11 +450,29 @@ closing the pool.
 with hot reload). A commentator:
 
 1. signs in or creates an account, then picks a handle if they have none;
-2. picks a game that is scheduled or on now;
+2. picks the game they're watching;
 3. checks their mic: chooses one and watches a level meter (echo
    cancellation, noise suppression and auto gain are on, for talking over a TV);
 4. goes live: the studio creates the stream (`POST /streams`), gets a
-   publisher token and sends the mic to the stream's LiveKit room; and ends it.
+   publisher token and sends the mic to the stream's LiveKit room. Until
+   everything is ready, the Go live step says what's missing.
+
+Going live swaps the setup for the **on-air view**
+([web/src/components/OnAir.tsx](web/src/components/OnAir.tsx)): the game, a
+LIVE badge and how long they've been on, the connection, and three numbers
+for their listeners: how many are **listening**, how many are **in sync
+with their TV** (of those who tried in the last 10 minutes), and how late
+listeners **hear them** (the median delay). Listeners whose TV didn't match
+get a line saying why that usually is (another channel or broadcast, a quiet
+TV). It comes from `GET /streams/{id}/sync-health`, the commentator's only
+(`app/streams/health_views.py`): every listener's sync leaves its latest
+result in Redis for 10 minutes (`app/streams/sync_health.py`). **End stream**
+asks once, in place ("End the stream for 12 listeners?"), since it cuts
+everyone off; nothing else asks.
+
+The studio's colours are one accent for actions and red only for live state
+and the danger confirmation, checked by a test for 4.5:1 contrast in the
+light and dark themes, with a visible focus ring for keyboard use.
 
 If LiveKit loses the connection it reconnects on its own and the studio says
 so. A reload, a crash or LiveKit giving up leaves the stream live in the API

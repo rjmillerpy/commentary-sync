@@ -4,7 +4,7 @@ import { expect, type Page } from "@playwright/test";
 
 import { PASSWORD, uniqueEmail } from "./api";
 
-const LIVE_TEXT = "Live: listeners can hear you";
+const LIVE_TEXT = "Listeners can hear you";
 const METER_SAMPLES = 20;
 const METER_INTERVAL_MS = 100;
 
@@ -56,8 +56,10 @@ export class Studio {
     await expect(this.page.getByText(LIVE_TEXT)).toBeVisible();
   }
 
+  /** Ending asks once, in place. */
   async end(): Promise<void> {
     await this.page.getByRole("button", { name: "End stream" }).click();
-    await expect(this.page.getByText("Off air")).toBeVisible();
+    await this.page.getByRole("button", { name: "Yes, end it" }).click();
+    await expect(this.page.getByRole("button", { name: "Go live" })).toBeVisible();
   }
 }

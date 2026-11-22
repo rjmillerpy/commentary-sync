@@ -21,7 +21,7 @@ test("passes the choice up", async () => {
   const onChoose = jest.fn();
   render(<EventPicker chosenId={null} isLocked={false} onChoose={onChoose} />);
   await userEvent.click(await screen.findByLabelText(/Lakers at Celtics/));
-  expect(onChoose).toHaveBeenCalledWith("e-later");
+  expect(onChoose).toHaveBeenCalledWith(expect.objectContaining({ id: "e-later" }));
 });
 
 test("says when nothing is on", async () => {

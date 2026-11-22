@@ -12,7 +12,7 @@ interface Props {
   event: SportsEvent;
   isChosen: boolean;
   isDisabled: boolean;
-  onChoose: (eventId: string) => void;
+  onChoose: (event: SportsEvent) => void;
 }
 
 function EventOption({ event, isChosen, isDisabled, onChoose }: Props) {
@@ -27,7 +27,7 @@ function EventOption({ event, isChosen, isDisabled, onChoose }: Props) {
           value={event.id}
           checked={isChosen}
           disabled={isDisabled}
-          onChange={() => onChoose(event.id)}
+          onChange={() => onChoose(event)}
         />
         <span className="option-title">{event.title}</span>
         <span className="option-detail">

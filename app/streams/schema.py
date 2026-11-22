@@ -143,3 +143,15 @@ class RecordingInfo(LiveKitModel):
     """LiveKit's answer to a start: the ID to stop it with."""
 
     egress_id: str = Field(min_length=1, max_length=MAX_RECORDING_ID_LENGTH)
+
+
+class SyncHealth(FrozenModel):
+    """How the stream's listeners synced in the last 10 minutes, by their
+    latest result: `in_sync` were found, `not_heard` weren't (their TV's sound
+    wasn't in the commentator's: another broadcast, or a TV too quiet).
+    `typical_delay_seconds` is the median delay they play at: how late
+    listeners hear the commentator."""
+
+    in_sync: int
+    not_heard: int
+    typical_delay_seconds: float | None

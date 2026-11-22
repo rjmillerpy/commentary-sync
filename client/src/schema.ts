@@ -101,3 +101,11 @@ export const SyncResultSchema = z.discriminatedUnion("status", [
   z.object({ status: z.literal("not_found") }),
 ]);
 export type SyncResult = z.infer<typeof SyncResultSchema>;
+
+/** How the commentator's listeners synced in the last 10 minutes (GET /streams/{id}/sync-health). */
+export const SyncHealthSchema = z.object({
+  in_sync: z.number().int(),
+  not_heard: z.number().int(),
+  typical_delay_seconds: z.number().nullable(),
+});
+export type SyncHealth = z.infer<typeof SyncHealthSchema>;

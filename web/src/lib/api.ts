@@ -20,6 +20,7 @@ export const {
   goLive,
   liveStreamOf,
   getStream,
+  syncHealth,
   endStream,
   publisherToken,
 } = api;

@@ -489,6 +489,12 @@ async def test_the_studio_sends_room_audio_and_a_listener_syncs_to_it(
     assert response.status_code == 200
     assert response.json()["status"] == "matched"
     assert response.json()["delay_seconds"] == pytest.approx(6, abs=0.1)
+    # The commentator's studio sees it: one listener in sync, hearing them ~6 s late.
+    health = api.get(
+        f"/streams/{stream['id']}/sync-health", headers=bearer(account.tokens.access_token)
+    )
+    assert health.json()["in_sync"] == 1
+    assert health.json()["typical_delay_seconds"] == pytest.approx(6, abs=0.1)
 
 
 async def test_sync_needs_sign_in(api: TestClient) -> None:

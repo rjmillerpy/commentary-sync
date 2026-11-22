@@ -31,7 +31,7 @@ test("a later game shows when it starts, and no networks when it has none", () =
 test("choosing it passes its ID", async () => {
   const onChoose = renderOption(LIVE_GAME);
   await userEvent.click(screen.getByRole("radio"));
-  expect(onChoose).toHaveBeenCalledWith("e-live");
+  expect(onChoose).toHaveBeenCalledWith(expect.objectContaining({ id: "e-live" }));
 });
 
 test.each([

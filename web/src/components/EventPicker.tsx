@@ -16,7 +16,7 @@ type Games = { state: "loading" } | { state: "ready"; events: SportsEvent[] } | 
 interface Props {
   chosenId: string | null;
   isLocked: boolean;
-  onChoose: (eventId: string) => void;
+  onChoose: (event: SportsEvent) => void;
 }
 
 export default function EventPicker({ chosenId, isLocked, onChoose }: Props) {
@@ -41,7 +41,7 @@ export default function EventPicker({ chosenId, isLocked, onChoose }: Props) {
 
   return (
     <section className="card" aria-labelledby="games-title">
-      <h2 id="games-title">1. Pick a game</h2>
+      <h2 id="games-title">1. Pick the game you&apos;re watching</h2>
       {games.state === "loading" && <p>Loading games…</p>}
       {games.state === "failed" && <p role="alert">{games.detail}</p>}
       {games.state === "ready" && games.events.length === 0 && <p>No games on or coming up.</p>}

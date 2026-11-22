@@ -50,7 +50,8 @@ test("a commentator goes live and a listener hears them, live and delayed", asyn
 
   await test.step("the commentator sees who is listening", async () => {
     await checkIn(request, listener, stream.id);
-    await expect(page.getByRole("status").filter({ hasText: "1 listening" })).toBeVisible({ timeout: AUDIENCE_WAIT_MS });
+    const listening = page.getByRole("region", { name: "Your listeners" }).getByRole("definition").first();
+    await expect(listening).toHaveText("1", { timeout: AUDIENCE_WAIT_MS });
   });
 
   await test.step("ending the stream ends it for everyone", async () => {

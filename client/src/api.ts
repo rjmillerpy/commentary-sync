@@ -23,6 +23,8 @@ import {
   type StreamPage,
   StreamPageSchema,
   StreamSchema,
+  type SyncHealth,
+  SyncHealthSchema,
   type SyncResult,
   SyncResultSchema,
   ServerTimeSchema,
@@ -184,6 +186,10 @@ export function createApi({ baseUrl, timeoutMs }: ApiConfig) {
     /** "I'm listening": a listener's app sends this every 20 s while it plays a stream. */
     listening: (token: string, streamId: string): Promise<null> =>
       call({ method: "POST", path: streamPath(streamId, "listening"), schema: Nothing, token }),
+
+    /** For the commentator: how their listeners are syncing. */
+    syncHealth: (token: string, streamId: string): Promise<SyncHealth> =>
+      call({ method: "GET", path: streamPath(streamId, "sync-health"), schema: SyncHealthSchema, token }),
 
     /** The stream's HLS playlist. A 409 until the commentator's audio
      * connects, and once the stream has ended. */

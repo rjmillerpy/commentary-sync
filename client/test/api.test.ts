@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
 import { ApiError, createApi } from "../src/api.ts";
-import { BASE_URL, COMMENTATOR, EVENTS, FakeApi, GUEST, PAIR, PLAYLIST, ROOM, STREAM, STREAMS, SYNC_MATCHED, SYNC_NOT_FOUND } from "../src/testing.ts";
+import { BASE_URL, COMMENTATOR, EVENTS, FakeApi, GUEST, PAIR, PLAYLIST, ROOM, STREAM, STREAMS, SYNC_HEALTH, SYNC_MATCHED, SYNC_NOT_FOUND } from "../src/testing.ts";
 
 const TIMEOUT_MS = 1_000;
 const SIGNED_IN = "Bearer tok";
@@ -166,6 +166,12 @@ test("one stream is public, by ID", async () => {
   fake.on("GET", "/streams/s-1", { status: 200, body: STREAM });
   assert.equal((await api.getStream("s-1")).status, "live");
   assert.equal(fake.requests[0]?.authorization, null);
+});
+
+test("the commentator reads their listeners' sync health", async () => {
+  fake.on("GET", "/streams/s-1/sync-health", { status: 200, body: SYNC_HEALTH });
+  assert.deepEqual(await api.syncHealth("tok", "s-1"), SYNC_HEALTH);
+  assert.equal(fake.requests[0]?.authorization, "Bearer tok");
 });
 
 test("checking in as a listener is a signed-in POST with no body", async () => {

@@ -1,12 +1,20 @@
+/* The studio's look (UI rule 11): one accent colour for actions, red only
+   for live state and the danger confirmation, a 4/8 px spacing grid, and
+   text at 4.5:1 contrast or more in both themes
+   (__tests__/app/test_globals.test.ts checks the colours). */
+
 :root {
   --bg: #f6f7f9;
   --card: #ffffff;
   --text: #16181d;
-  --muted: #5b6270;
+  --muted: #545b68;
   --line: #d9dde4;
   --accent: #1f5fd1;
+  --on-accent: #ffffff;
   --live: #c81e1e;
+  --danger: #c81e1e;
   --chosen: #e8effc;
+  --focus: #1f5fd1;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -14,11 +22,14 @@
     --bg: #111318;
     --card: #1a1d24;
     --text: #e8eaee;
-    --muted: #9aa1ad;
+    --muted: #a3a9b4;
     --line: #2d323c;
-    --accent: #6e9cf0;
-    --live: #f05252;
+    --accent: #2f6fe4;
+    --on-accent: #ffffff;
+    --live: #ff7b72;
+    --danger: #c81e1e;
     --chosen: #1f2a40;
+    --focus: #8ab4ff;
   }
 }
 
@@ -31,38 +42,47 @@ body {
   font: 16px/1.5 system-ui, sans-serif;
 }
 
-main { max-width: 40rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+main { max-width: 40rem; margin: 0 auto; padding: 24px 16px 48px; }
 
 .card {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 12px;
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
-  padding: 1.25rem;
-  margin: 0 0 1rem;
+  border-radius: 12px;
+  padding: 20px;
+  margin: 0 0 16px;
 }
 
-h1 { margin: 0 0 1rem; }
-h2 { margin: 0; font-size: 1.15rem; }
-label { display: flex; flex-direction: column; gap: 0.25rem; font-weight: 600; }
-input, select { font: inherit; padding: 0.5rem; border: 1px solid var(--line); border-radius: 0.4rem; background: var(--bg); color: var(--text); }
-meter { width: 100%; height: 1.25rem; }
+h1 { margin: 0 0 16px; font-size: 2rem; }
+h2 { margin: 0; font-size: 1.25rem; }
+label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
+input, select { font: inherit; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); }
+meter { width: 100%; height: 20px; }
 
-button { font: inherit; font-weight: 600; padding: 0.6rem 1rem; border: 0; border-radius: 0.4rem; background: var(--accent); color: #fff; cursor: pointer; }
+button { font: inherit; font-weight: 600; min-height: 44px; padding: 8px 16px; border: 0; border-radius: 8px; background: var(--accent); color: var(--on-accent); cursor: pointer; }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
-button.danger { background: var(--live); }
-button.link { background: none; color: var(--accent); padding: 0.25rem 0; align-self: flex-start; }
+button.secondary { background: none; color: var(--text); border: 1px solid var(--line); }
+button.danger { background: var(--danger); color: #ffffff; }
+button.link { background: none; color: var(--focus); min-height: 0; padding: 4px 0; align-self: flex-start; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 
-.options { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; max-height: 22rem; overflow-y: auto; }
-.option { display: grid; grid-template-columns: auto 1fr; column-gap: 0.6rem; padding: 0.6rem; border: 1px solid var(--line); border-radius: 0.5rem; font-weight: 400; cursor: pointer; }
+.options { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 22rem; overflow-y: auto; }
+.option { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; font-weight: 400; cursor: pointer; }
 .option.chosen { background: var(--chosen); border-color: var(--accent); }
 .option input { grid-row: span 2; }
 .option-title { font-weight: 600; }
-.option-detail, .hint, .greeting { color: var(--muted); font-size: 0.9rem; margin: 0; }
+.option-detail, .hint, .greeting { color: var(--muted); font-size: 0.875rem; margin: 0; }
 .status { margin: 0; font-weight: 600; }
-.status.live { color: var(--live); }
 [role="alert"] { color: var(--live); margin: 0; }
 
-.audience { font-weight: 700; margin: 0; }
+.badge { margin: 0; font-size: 0.875rem; font-weight: 700; letter-spacing: 0.04em; color: var(--muted); }
+.badge.live { color: var(--live); }
+.elapsed { color: var(--muted); font-weight: 400; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 8px; margin: 0; }
+.stats div { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
+.stats dt { color: var(--muted); font-size: 0.875rem; }
+.stats dd { margin: 0; font-size: 1.25rem; font-weight: 700; }
+.confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.confirm .status { flex-basis: 100%; }

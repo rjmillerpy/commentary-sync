@@ -103,6 +103,7 @@ export const STREAM = {
 };
 export const ENDED_STREAM = { ...STREAM, status: "ended", ended_at: "2026-10-18T20:05:00Z" };
 export const ROOM = { url: "ws://localhost:7880/", room: "stream-s-1", token: "room-token", expires_in: 600 };
+export const SYNC_HEALTH = { in_sync: 9, not_heard: 2, typical_delay_seconds: 23.4 };
 
 /** How the studio asks whether fan_cast left a stream live. */
 export const OWN_LIVE_STREAMS = "/streams?commentator=fan_cast&limit=1";
@@ -121,5 +122,6 @@ export function studioApi(): FakeApi {
     .on("POST", "/streams", { status: 201, body: STREAM })
     .on("POST", "/streams/s-1/publisher-token", { status: 200, body: ROOM })
     .on("POST", "/streams/s-1/end", { status: 200, body: ENDED_STREAM })
+    .on("GET", "/streams/s-1/sync-health", { status: 200, body: SYNC_HEALTH })
     .install();
 }
