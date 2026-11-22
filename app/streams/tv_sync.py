@@ -89,7 +89,7 @@ async def measure_delay(
     behind the commentator's."""
     stream = await service.live_stream(db, stream_id)
     _check_capture_time(captured_at, now)
-    query = _read_features(features)
+    query = read_features(features)
     stored = await reference.load(cache, stream.id)
     reference_features = (
         None if stored is None else await asyncio.to_thread(_features_of, stored.samples)
@@ -109,7 +109,7 @@ async def measure_delay(
     return SyncResult(status=SyncStatus.MATCHED, delay_seconds=delay, peak_ratio=match.peak_ratio)
 
 
-def _read_features(data: bytes) -> Features:
+def read_features(data: bytes) -> Features:
     """The phone's features: frames of BAND_COUNT float32 values, row by row."""
     if len(data) % FRAME_BYTES != 0:
         raise SyncAudioError(f"features come in frames of {BAND_COUNT} float32 values")

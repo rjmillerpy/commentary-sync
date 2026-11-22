@@ -91,9 +91,15 @@ class Settings(BaseSettings):
     # `hls_output_root`: a directory locally, a key prefix with S3 upload.
     livekit_api_url: HttpUrl | None = None
     hls_base_url: HttpUrl | None = None
+    # Where the API itself reads the recordings back (the leak check), when
+    # that differs from where listeners fetch them: inside the compose
+    # network, http://hls:8080. Unset, it reads from `hls_base_url`.
+    hls_read_url: HttpUrl | None = None
     hls_output_root: str = Field(default="/hls", pattern=r"^/?[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*$")
     hls_segment_seconds: int = Field(default=2, ge=1, le=MAX_HLS_SEGMENT_SECONDS)
     livekit_api_timeout_seconds: float = Field(default=5.0, gt=0, le=MAX_TIMEOUT_SECONDS)
+    # Reading the HLS recording back, for the leak check (app/streams/leaks.py).
+    hls_read_timeout_seconds: float = Field(default=5.0, gt=0, le=MAX_TIMEOUT_SECONDS)
     # A listener counts as listening for this long after their app last
     # checked in (it checks in every 20 s, so this rides out two misses).
     listener_window_seconds: int = Field(

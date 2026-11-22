@@ -10,11 +10,9 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.cache import get_cache
-from app.common.config import Settings, get_settings
 from app.events.models import Event
 from app.events.schema import EventStatus
 from app.streams import reference, tv_sync
-from app.streams.recorder import Recorder, get_recorder
 from app.streams.views import (
     CHECK_INS_PER_MINUTE,
     ROOM_TOKENS_PER_MINUTE,
@@ -30,11 +28,11 @@ from tests.streams.conftest import (
     TEST_HLS_BASE_URL,
     FakeEgress,
     add_event,
+    commentator_connects,
     go_live,
     make_commentator,
-    notice_body,
-    sign_webhook,
-    webhook,
+    send_features,
+    send_reference,
 )
 
 pytestmark = pytest.mark.anyio
@@ -313,24 +311,6 @@ async def test_the_commentator_filter_is_bounded(api: TestClient) -> None:
     assert api.get("/streams", params={"commentator": "x" * 31}).status_code == 422
 
 
-@pytest.fixture
-def hls_api(
-    api: TestClient, app: FastAPI, hls_settings: Settings, recorder: Recorder
-) -> TestClient:
-    """The API with HLS on, its recorder talking to FakeEgress."""
-    app.dependency_overrides[get_settings] = lambda: hls_settings
-    app.dependency_overrides[get_recorder] = lambda: recorder
-    return api
-
-
-def commentator_connects(api: TestClient, stream: Json, account: Account) -> None:
-    """What LiveKit sends when the studio joins the stream's room."""
-    me = api.get("/commentators/me", headers=bearer(account.tokens.access_token)).json()
-    identity = f"commentator-{me['id']}/PA_one"
-    body = notice_body("participant_joined", uuid.UUID(str(stream["id"])), identity)
-    assert webhook(api, body, sign_webhook(body)).status_code == 204
-
-
 def playlist(api: TestClient, account: Account, stream_id: object) -> httpx2.Response:
     return api.post(
         f"/streams/{stream_id}/listener-playlist", headers=bearer(account.tokens.access_token)
@@ -445,28 +425,6 @@ async def test_playlists_share_the_room_token_rate_limit(
         for _ in range(ROOM_TOKENS_PER_MINUTE.limit + 1)
     ]
     assert statuses[-1] == 429
-
-
-def send_reference(
-    api: TestClient, account: Account, stream_id: object, pcm: bytes, at: float
-) -> httpx2.Response:
-    return api.post(
-        f"/streams/{stream_id}/reference",
-        params={"captured_at": at},
-        content=pcm,
-        headers={**bearer(account.tokens.access_token), "Content-Type": "application/octet-stream"},
-    )
-
-
-def send_features(
-    api: TestClient, account: Account, stream_id: object, features: bytes, at: float
-) -> httpx2.Response:
-    return api.post(
-        f"/streams/{stream_id}/sync",
-        params={"captured_at": at},
-        content=features,
-        headers={**bearer(account.tokens.access_token), "Content-Type": "application/octet-stream"},
-    )
 
 
 async def test_the_studio_sends_room_audio_and_a_listener_syncs_to_it(

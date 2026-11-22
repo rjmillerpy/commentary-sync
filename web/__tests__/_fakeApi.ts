@@ -103,7 +103,7 @@ export const STREAM = {
 };
 export const ENDED_STREAM = { ...STREAM, status: "ended", ended_at: "2026-10-18T20:05:00Z" };
 export const ROOM = { url: "ws://localhost:7880/", room: "stream-s-1", token: "room-token", expires_in: 600 };
-export const SYNC_HEALTH = { in_sync: 9, not_heard: 2, typical_delay_seconds: 23.4 };
+export const SYNC_HEALTH = { in_sync: 9, not_heard: 2, typical_delay_seconds: 23.4, game_audio: "clear" as const };
 
 /** How the studio asks whether fan_cast left a stream live. */
 export const OWN_LIVE_STREAMS = "/streams?commentator=fan_cast&limit=1";

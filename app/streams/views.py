@@ -21,7 +21,7 @@ from datetime import UTC, datetime
 from http import HTTPStatus
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,6 +49,8 @@ from app.streams.errors import (
     StreamNotFoundError,
     SyncAudioError,
 )
+from app.streams.hls_audio import HlsReader, get_hls_reader
+from app.streams.leaks import LeakDetector, ListenerTv, get_leak_detector
 from app.streams.models import Stream
 from app.streams.recorder import Recorder, get_recorder
 from app.streams.schema import (
@@ -253,6 +255,9 @@ async def sync_to_tv(
     listener: Listening,
     db: Database,
     cache: Cache,
+    reader: Annotated[HlsReader | None, Depends(get_hls_reader)],
+    background: BackgroundTasks,
+    detector: Annotated[LeakDetector, Depends(get_leak_detector)],
 ) -> SyncResult:
     """The matcher's features of 3 to 20 s of the listener's TV (client/src/features.ts):
     frames of 16 little-endian float32 values, 100 a second. Never audio."""
@@ -262,6 +267,11 @@ async def sync_to_tv(
     result = await _with_sync_errors(_on_live_stream(action))
     # For the commentator's studio: how their listeners are syncing (health_views.py).
     await sync_health.record(cache, stream_id, listener.id, result, now=now.timestamp())
+    if result.delay_seconds is not None and reader is not None:
+        # After the reply: is this listener's TV in what the stream broadcasts?
+        tv = ListenerTv(tv_sync.read_features(features), captured_at - result.delay_seconds)
+        stream = await service.live_stream(db, stream_id)
+        await detector.schedule(background, reader, cache, stream, tv)
     return result
 
 

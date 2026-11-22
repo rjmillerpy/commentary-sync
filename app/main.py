@@ -28,6 +28,7 @@ from app.common.security_headers import SecurityHeadersMiddleware
 from app.events.views import events_router
 from app.health.views import health_router
 from app.streams.health_views import sync_health_router
+from app.streams.hls_audio import create_hls_reader
 from app.streams.recorder import create_recorder
 from app.streams.views import streams_router
 from app.streams.webhooks import webhooks_router
@@ -80,11 +81,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.engine = create_database_engine(resolved)
         app.state.cache = create_cache(resolved)
         app.state.recorder = create_recorder(resolved)
+        app.state.hls_reader = create_hls_reader(resolved)
         try:
             yield
         finally:
             if app.state.recorder is not None:
                 await app.state.recorder.aclose()
+            if app.state.hls_reader is not None:
+                await app.state.hls_reader.aclose()
             await app.state.cache.aclose()
             await app.state.engine.dispose()
             logger.info("database pool and cache client closed")

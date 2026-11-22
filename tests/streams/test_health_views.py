@@ -11,9 +11,13 @@ from app.common.cache import get_cache
 from app.events.models import Event
 from app.streams import sync_health
 from app.streams.health_views import HEALTH_READS_PER_MINUTE
-from app.streams.schema import SyncResult, SyncStatus
+from app.streams.leaks import NoLeakDetector, get_leak_detector
+from app.streams.schema import GameAudio, SyncResult, SyncStatus
 from tests.conftest import Account, bearer, register_account
-from tests.streams.conftest import go_live, make_commentator
+from tests.streams.conftest import (
+    go_live,
+    make_commentator,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -36,7 +40,12 @@ async def test_the_commentator_sees_how_their_listeners_are_syncing(
     )
     response = health(api, account, stream_id)
     assert response.status_code == 200
-    assert response.json() == {"in_sync": 1, "not_heard": 1, "typical_delay_seconds": 22.0}
+    assert response.json() == {
+        "in_sync": 1,
+        "not_heard": 1,
+        "typical_delay_seconds": 22.0,
+        "game_audio": "unknown",  # no leak check has run
+    }
 
 
 async def test_with_nobody_synced_yet_it_says_so(
@@ -48,6 +57,7 @@ async def test_with_nobody_synced_yet_it_says_so(
         "in_sync": 0,
         "not_heard": 0,
         "typical_delay_seconds": None,
+        "game_audio": "unknown",
     }
 
 
@@ -85,3 +95,17 @@ async def test_reads_are_rate_limited(api: TestClient, account: Account) -> None
         for _ in range(HEALTH_READS_PER_MINUTE.limit + 1)
     ]
     assert statuses[-1] == 429
+
+
+class _Suspects(NoLeakDetector):
+    async def verdict(self, cache: Redis, stream_id: uuid.UUID) -> GameAudio:
+        return GameAudio.SUSPECTED
+
+
+async def test_the_commentator_hears_the_detectors_verdict(
+    api: TestClient, app: FastAPI, account: Account, event: Event
+) -> None:
+    app.dependency_overrides[get_leak_detector] = _Suspects
+    make_commentator(api, account)
+    stream = go_live(api, account, event)
+    assert health(api, account, stream["id"]).json()["game_audio"] == "suspected"

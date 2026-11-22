@@ -1,6 +1,7 @@
 /** Who is listening and how their sync is going (UI rule 12): how many
  * listen, how many matched their TV to the commentator's, how late they hear
- * them, and why the rest didn't match. */
+ * them, and why the rest didn't match; and, at once, if the server's checks
+ * hear the game's own sound in the stream (app/streams/leaks.py). */
 
 import type { SyncHealth } from "@commentary-sync/client/schema";
 
@@ -10,6 +11,8 @@ interface Props {
 }
 
 const UNKNOWN = "…";
+const GAME_AUDIO =
+  "Listeners can hear the game's sound in your stream: your mic is picking up your TV. Turn the TV down, or move the mic closer to you. Streams that rebroadcast the game can be taken down.";
 
 export default function ListenerHealth({ listeners, health }: Props) {
   const tried = health === null ? 0 : health.in_sync + health.not_heard;
@@ -29,6 +32,7 @@ export default function ListenerHealth({ listeners, health }: Props) {
           <dd>{lateness(health)}</dd>
         </div>
       </dl>
+      {health?.game_audio === "suspected" && <p role="alert">{GAME_AUDIO}</p>}
       {health !== null && health.not_heard > 0 && <p className="hint">{notHeard(health.not_heard)}</p>}
     </section>
   );

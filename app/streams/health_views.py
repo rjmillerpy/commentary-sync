@@ -1,6 +1,8 @@
 """How a commentator's listeners are syncing, for their studio.
 
-GET /streams/{id}/sync-health  the commentator's own live stream only
+GET /streams/{id}/sync-health  the commentator's own live stream only: their
+                               listeners' sync, and whether the game's sound
+                               is going out (leaks.py)
 
 Apart from views.py to keep both under the module size limit.
 """
@@ -22,6 +24,7 @@ from app.common.rate_limit import RateLimit, rate_limited
 from app.common.schema import documented_errors
 from app.streams import service, sync_health
 from app.streams.errors import StreamEndedError, StreamNotFoundError
+from app.streams.leaks import LeakDetector, get_leak_detector
 from app.streams.schema import SyncHealth
 from app.streams.views import STREAM_ENDED_DETAIL, STREAM_NOT_FOUND_DETAIL
 
@@ -47,6 +50,7 @@ async def sync_health_of(
     user: Annotated[User, Depends(current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     cache: Annotated[Redis, Depends(get_cache)],
+    detector: Annotated[LeakDetector, Depends(get_leak_detector)],
 ) -> SyncHealth:
     try:
         stream = await service.own_live_stream(db, user, stream_id)
@@ -61,4 +65,5 @@ async def sync_health_of(
         in_sync=health.in_sync,
         not_heard=health.not_heard,
         typical_delay_seconds=health.typical_delay_seconds,
+        game_audio=await detector.verdict(cache, stream.id),
     )

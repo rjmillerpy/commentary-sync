@@ -145,6 +145,15 @@ class RecordingInfo(LiveKitModel):
     egress_id: str = Field(min_length=1, max_length=MAX_RECORDING_ID_LENGTH)
 
 
+class GameAudio(StrEnum):
+    """What the checks say about a stream: `clear` (checked, no game sound),
+    `suspected` (most recent checks heard it), `unknown` (not checked yet)."""
+
+    CLEAR = "clear"
+    SUSPECTED = "suspected"
+    UNKNOWN = "unknown"
+
+
 class SyncHealth(FrozenModel):
     """How the stream's listeners synced in the last 10 minutes, by their
     latest result: `in_sync` were found, `not_heard` weren't (their TV's sound
@@ -155,3 +164,5 @@ class SyncHealth(FrozenModel):
     in_sync: int
     not_heard: int
     typical_delay_seconds: float | None
+    # Whether the game's own sound is going out in the stream (app/streams/leaks.py).
+    game_audio: GameAudio

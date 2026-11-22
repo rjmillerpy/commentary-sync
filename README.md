@@ -731,6 +731,31 @@ Checked:
   - the retries;
   - the pause advice.
 
+### Keeping the game off air
+
+A commentator's mic also hears their TV, and rebroadcasting the game's sound
+is the main legal risk. The server checks streams for it itself, after
+listeners' syncs, against what listeners actually get: the stream's own HLS
+recording ([app/streams/hls_audio.py](app/streams/hls_audio.py) reads it
+back, joining the segments into one MPEG-TS stream so the timeline stays
+exact). Nothing is asked of the commentator, nothing is taken on trust from
+their browser, and checks run after the sync's reply.
+
+How it checks is private, like the matcher: [app/streams/leaks.py](app/streams/leaks.py)
+is the seam, and an installed package registers a detector under the
+`commentary_sync.leak_detectors` entry point group. The public build has
+none, so nothing is checked and every stream reports `game_audio: "unknown"`.
+When a detector suspects a stream, it's logged for review, the commentator's
+on-air view says so ("Listeners can hear the game's sound in your stream…"),
+and `GET /streams/{id}/sync-health` returns `game_audio: "suspected"`.
+
+`COMMENTARY_HLS_READ_TIMEOUT_SECONDS` (5) bounds each fetch of the recording,
+and `COMMENTARY_HLS_READ_URL` is where the API reads recordings when phones
+use another address (compose: `http://hls:8080`; unset,
+`COMMENTARY_HLS_BASE_URL`). The recording's path, its only key, is never
+logged.
+
+
 ### Staying in sync
 
 After the first sync, the app keeps the commentary lined up by itself

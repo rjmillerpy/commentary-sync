@@ -56,6 +56,7 @@ services:
       # playlist URLs on the `hls` service below.
       COMMENTARY_LIVEKIT_API_URL: http://livekit:7880
       COMMENTARY_HLS_BASE_URL: ${COMMENTARY_HLS_BASE_URL:-http://localhost:8080}
+      COMMENTARY_HLS_READ_URL: http://hls:8080 # the leak check reads it from inside the network
       # The studio (the `web` service below) calls the API from the browser.
       COMMENTARY_CORS_ORIGINS: '["http://localhost:3000"]'
     ports:
@@ -109,6 +110,7 @@ services:
       # playlist URLs on the `hls` service below.
       COMMENTARY_LIVEKIT_API_URL: http://livekit:7880
       COMMENTARY_HLS_BASE_URL: ${COMMENTARY_HLS_BASE_URL:-http://localhost:8080}
+      COMMENTARY_HLS_READ_URL: http://hls:8080 # the leak check reads it from inside the network
     read_only: true
     tmpfs:
       - /tmp

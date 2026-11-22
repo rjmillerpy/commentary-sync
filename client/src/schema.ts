@@ -107,5 +107,7 @@ export const SyncHealthSchema = z.object({
   in_sync: z.number().int(),
   not_heard: z.number().int(),
   typical_delay_seconds: z.number().nullable(),
+  /** Whether the game's own sound is going out in the stream (app/streams/leaks.py). */
+  game_audio: z.enum(["clear", "suspected", "unknown"]),
 });
 export type SyncHealth = z.infer<typeof SyncHealthSchema>;

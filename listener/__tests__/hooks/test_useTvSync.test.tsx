@@ -39,6 +39,10 @@ async function syncNow(onPlan = jest.fn(), { auto = false, currentDelay = 10 } =
   return { ...hook, onPlan };
 }
 
+// Each sync here is real: 10 s of audio resampled and turned into features in
+// JavaScript, several per test, which takes seconds of CPU on a busy machine.
+jest.setTimeout(30_000);
+
 beforeEach(() => {
   jest.useFakeTimers();
   microphone.feed = tv(RECORDING_SECONDS, microphone.sampleRate);

@@ -101,5 +101,5 @@ export const STREAMS = { items: [STREAM], limit: 100, offset: 0, next_offset: nu
 export const ROOM = { url: "ws://localhost:7880/", room: "stream-s-1", token: "room-token", expires_in: 600 };
 export const PLAYLIST = { url: "http://localhost:8080/abc/index.m3u8" };
 export const SYNC_MATCHED = { status: "matched", delay_seconds: 23.5, peak_ratio: 3.2 };
-export const SYNC_HEALTH = { in_sync: 9, not_heard: 2, typical_delay_seconds: 23.4 };
+export const SYNC_HEALTH = { in_sync: 9, not_heard: 2, typical_delay_seconds: 23.4, game_audio: "clear" };
 export const SYNC_NOT_FOUND = { status: "not_found", delay_seconds: null, peak_ratio: null };
