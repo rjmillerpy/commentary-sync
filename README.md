@@ -631,15 +631,16 @@ because 0.88.0 itself came out on 2026-10-15; move to it once it is two weeks
 old. Expo 58 because the Expo Go app in the stores runs only the newest SDK,
 and its React (19.3.0) is the studio's, which keeps the workspace on one copy.
 Everything was installed with `npm install --before=2026-10-05`, so transitive
-packages are two weeks old too. `npm audit --omit=dev` reports two advisories,
-both inside Expo's command-line tools (`expo` is a runtime dependency by Expo's
-convention, but these parts run only on the laptop, to serve and bundle the
-app; neither is in the app itself): `node-forge` (used only for Expo's update
-code signing, which this app doesn't use) and `braces` (it reads only Metro's
-own file patterns). Neither has a fixed release yet. A third, in `uuid`, is
-fixed by an npm override in the root `package.json`: Expo's `xcode` tool gets
-uuid 11.1.1 instead of 7, and it only ever calls `uuid.v4()`, which 11 still
-provides. Recheck when Expo 58 updates.
+packages are two weeks old too. `npm audit` reports one advisory: zod 3,
+inside Expo's command-line tool (`expo` is a runtime dependency by Expo's
+convention, but this part runs only on the laptop, to serve and bundle the
+app, and only reads Expo's own config). There is no fixed zod 3, and Expo's
+tool can't take zod 4. The root `package.json` overrides move other tools'
+packages past their advisories: Expo's `xcode` tool gets uuid 11.1.1 instead
+of 7 (it only calls `uuid.v4()`, which 11 still has), and glob 9–14.0.1 and
+minimatch 7–11.0.0 (inside Jest, ESLint and Expo's tools) go to glob 14.0.3
+and minimatch 11.0.5, which still ship CommonJS; the old glob 7 and
+minimatch 3 aren't affected and stay. Recheck when Expo 58 updates.
 
 ### Trying it on a phone (free)
 
